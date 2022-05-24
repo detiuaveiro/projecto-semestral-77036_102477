@@ -1,0 +1,38 @@
+Scripts a desenvolver:
+- Daemon.py:
+    -> Gera os nós da rede P2P
+    -> Devem imprimir no terminal o seu endereço
+- Client.py:
+    -> Interface com que os utilizadores acedem à rede
+    -> Cada cliente liga-se a um só nó
+    -> Deve ter como argumento o endereço do nó daemon a que se vai ligar
+
+Partilha das fotos:
+-> Imagens repartidas em diferentes pastas, com script dado pelo prof
+-> Cada nó Daemon da rede fica responsável por armazenar fotografias de uma pasta
+-> Nós identificam unicamente cada imagem com um hash (biblioteca imagehash)
+-> Imagens abertas através da biblioteca Pillow, a partir do seu identificador
+
+Rede P2P:
+-> Pode-se readaptar anel CHORD para P2P
+-> Todos os nós podem ter conhecimento da existência uns dos outros
+-> Cada cliente liga-se apenas a um daemon: Quando um cliente ligado ao nó 1 pede acesso a uma imagem guardada pelo nó 2,
+nó 1 deve contactar o 2, e 2 deve enviar a IMAGEM (e não o caminho) através da rede
+
+
+-> Nós devem ter conhecimento das imagens guardadas pelos outros nós, com 2 hipóteses:
+    -> Estrutura de dados única que guarda a localização dos ficheiros (nós que o guardam?)
+    . Partilhado por todos os nós
+    -> Troca de mensagens para localizar caminho (tipo protocolo do chord)
+
+-> Client.py deve ter método getListOfImages(): Lista imagens guardadas no sistema e o seu caminho
+
+Tolerância a Falhas:
+-> Sistema P2P deve replicar fotos de maneira a que haja 2 cópias de cada no sistema
+-> Imagens duplicadas (para além da cópia de segurança) devem ser identificadas com hash,
+e deve ser mantida apenas a imagem de maior qualidade. Ficheiros duplicados devem ser eliminados
+não só da estrutura de dados partilhada, como do próprio diretório
+-> EStabilidade da rede deve ser mantida com esquema similar ao stabilize() do chord (para garantir
+que as imagens não são perdidas caso um nó falhe, para restabelecer contacto entre os nós, etc)
+
+
