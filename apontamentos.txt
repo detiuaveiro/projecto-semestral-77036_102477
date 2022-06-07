@@ -14,7 +14,9 @@ Partilha das fotos:
 -> Imagens repartidas em diferentes pastas, com script dado pelo prof
 -> Cada nó Daemon da rede fica responsável por armazenar fotografias de uma pasta
 -> Nós identificam unicamente cada imagem com um hash, na sua pasta (biblioteca imagehash)
--> Caso o nó detete que há imagens repetidas na sua pasta, a duplicada é eliminada
+-> Caso o nó detete que há imagens repetidas na sua pasta, a duplicada é eliminada.
+-> Daemons devem também verificar se alguma das suas imagens é duplicada num dos daemons já ligados à rede, e eliminar caso tal
+aconteça.
 -> Imagens abertas através da biblioteca Pillow, a partir do seu identificador
 
 Rede P2P:
@@ -29,11 +31,16 @@ nó 1 deve contactar o 2, e 2 deve enviar a IMAGEM (e não o caminho) através d
     -> Troca de mensagens para localizar caminho (tipo protocolo do chord)
 
 Tolerância a Falhas:
--> Sistema P2P deve replicar fotos de maneira a que haja 2 cópias de cada no sistema
+-> Sistema P2P deve replicar fotos de maneira a que haja 2 cópias de cada no sistema.
 -> Imagens duplicadas (para além da cópia de segurança) devem ser identificadas com hash,
 e deve ser mantida apenas a imagem de maior qualidade. Ficheiros duplicados devem ser eliminados
-não só da estrutura de dados partilhada, como do próprio diretório
+não só da estrutura de dados partilhada, como do próprio diretório.
 -> Estabilidade da rede deve ser mantida com esquema similar ao stabilize() do chord (para garantir
 que as imagens não são perdidas caso um nó falhe, para restabelecer contacto entre os nós, etc)
+-> Quando um daemon falha devem ser replicadas noutro nó as fotos que ele guardava.
+
+
+IDEIAS:
+-> Passar lista DHT em vez de dht_adress na inicialização de um novo nó (para salvaguardar caso o nó original morra)
 
 

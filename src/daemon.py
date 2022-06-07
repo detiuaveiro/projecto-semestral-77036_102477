@@ -10,7 +10,7 @@ import argparse
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
 
-    def __init__(self, address, id, dht_address=None, timeout=3):
+    def __init__(self, address, id, dht_address=None, timeout=10):
         """Constructor
 
         Parameters:
@@ -28,8 +28,9 @@ class DHTNode(threading.Thread):
         else:
             self.inside_dht = False
 
-        self.routingTable = {}      # Dict that will keep the adresses of the other nodes in the mesh
-        self.keystore = {}          # Where all data is stored
+        self.routingTable = {}              # Dict that will keep the adresses of the other nodes in the mesh
+        self.routingTableStatus = {}        # Dict that will keep the connection status of the other nodes in the mesh
+        self.keystore = {}                  # Where all data is stored
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(timeout)
         self.logger = logging.getLogger("Node {}".format(self.identification))
@@ -70,39 +71,38 @@ class DHTNode(threading.Thread):
             rt_reply[node] = addr
 
         self.routingTable[identification] = recAddr
-        self.send(recAddr, {"method": "JOIN_REP", "args": {'addr':self.addr, 'id':self.identification} ,"routingTable": rt_reply})
+        self.routingTableStatus[identification] = True
+        self.send(recAddr, {"method": "JOIN_REP", "args": {'addr':self.addr, 'id':self.identification}, "routingTable": rt_reply})
 
         self.logger.info(self)
 
-    def stabilize(self, from_id, addr):
-        """Process STABILIZE protocol.
-            Updates all successor pointers.
-        Parameters:
-            from_id: id of the predecessor of node with address addr
-            addr: address of the node sending stabilize message
-        """
-        '''
-        self.logger.debug("Stabilize: %s %s", from_id, addr)
-        if from_id is not None and contains(
-                self.identification, self.successor_id, from_id
-        ):
-            # Update our successor
-            self.successor_id = from_id
-            self.successor_addr = addr
-
-        # notify successor of our existence, so it can update its predecessor record
-        args = {"predecessor_id": self.identification, "predecessor_addr": self.addr}
-        self.send(self.successor_addr, {"method": "NOTIFY", "args": args})
-        '''
-        pass
-
     def stay_alive(self):
-        for addr in self.routingTable.values():
+        """
+        Part of the Stabilization protocol.
+        Sends an ALIVE message to all the nodes in the Routing Table to check if they're still active.
+        Afterwards, it sets the status of all nodes to False (Dead). The status will be reset to True if they reply with
+        an ALIVE_ACK message.
+        """
+        for node, addr in self.routingTable.items():
             hello_msg = {
                 "method": "ALIVE",
                 "args": {"addr": self.addr, "id": self.identification},
             }
             self.send(addr, hello_msg)
+            self.routingTableStatus[node] = False
+
+    def check_alive(self):
+        """
+            Part of the Stabilization protocol.
+            Checks all the nodes in the routing table to see if they're still alive. Removes them from the routing table if
+        they're not.
+        """
+        for node, status in self.routingTableStatus.items():
+            if not status:
+                self.routingTableStatus.pop(node)
+                self.routingTable.pop(node)
+
+        self.logger.info(self)
 
     def get(self, key, address):
         pass
@@ -122,15 +122,17 @@ class DHTNode(threading.Thread):
                 output = pickle.loads(payload)
                 self.logger.debug("O: %s", output)
                 if output["method"] == "JOIN_REP":
-                    """
-                    JOIN_REP message with format: {'method': 'JOIN_REP',
-                    'args': {'addr':addr, 'id':id},
-                    'routingTable': {'node_id': [node_addr, node_port]...}}
-                    """
+                    # JOIN_REP message with format: {'method': 'JOIN_REP',
+                    # 'args': {'addr':addr, 'id':id},
+                    # 'routingTable': {'node_id': [node_addr, node_port]...}}
                     neighborRT = output["routingTable"]
                     # Nó atualiza a sua routing Table com a informação recebida
+                    # Adição dos Nós Recebidos na Mensagem
                     self.routingTable = {key: (value[0], value[1]) for key, value in neighborRT.items()}
+                    self.routingTableStatus = {key: True for key in neighborRT.keys()}
+                    # Adição do Nó Base
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
+                    self.routingTableStatus[output["args"]["id"]] = True
 
                     # Nó avisa vizinhos de que entrou na rede
                     for addr in self.routingTable.values():
@@ -152,28 +154,33 @@ class DHTNode(threading.Thread):
                     self.node_join(output["args"])
                 elif output["method"] == "GET":
                     self.get(output["args"]["key"], output["args"].get("from", addr))
-                elif output["method"] == "STABILIZE":
-                    # Initiate stabilize protocol
-                    self.stabilize(output["args"], addr)
                 elif output["method"] == "HELLO":
+                    #Adição do Nó à Routing Table
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
+                    self.routingTableStatus[output["args"]["id"]] = True
+                    # Sending the Reply
                     self.send(addr, {"method": "HELLO_ACK", })
                     self.logger.info(self)
-
-            else:  # timeout occurred, lets run the stabilize algorithm
-                # Ask successor for predecessor, to start the stabilize process
-                #TODO: Update with new network configuration and check_alive()
-                #self.send(self.successor_addr, {"method": "PREDECESSOR"})
+                elif output["method"] == "ALIVE":
+                    # Sends an ALIVE_ACK message notifying self is alive
+                    ack_msg = {
+                        "method": "ALIVE_ACK",
+                        "args": {"addr": self.addr, "id": self.identification},
+                    }
+                    self.send(addr, ack_msg)
+                elif output["method"] == "ALIVE_ACK":
+                    # Changes the status of the sender to alive in the Routing Table
+                    self.routingTableStatus[output["args"]["id"]] = True
+            else:  # timeout occurred, lets run the stabilize protocol
                 self.check_alive()
                 self.stay_alive()
 
-                pass
-
     def __str__(self):
-        return "Node ID: {}; DHT: {}; Routing Table: {}".format(
+        return "Node ID: {}; DHT: {}; Routing Table Nodes: {}; Routing Table Status: {}".format(
             self.identification,
             self.inside_dht,
-            self.routingTable
+            self.routingTable,
+            self.routingTableStatus
         )
 
     def __repr__(self):
