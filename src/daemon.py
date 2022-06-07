@@ -57,6 +57,7 @@ class DHTNode(threading.Thread):
 
         REPLY:
             JOIN_REP message with format: {'method': 'JOIN_REP',
+            'args': {'addr':addr, 'id':id},
             'routingTable': {'node_id': [node_addr, node_port]...}}
         """
 
@@ -69,15 +70,13 @@ class DHTNode(threading.Thread):
             rt_reply[node] = addr
 
         self.routingTable[identification] = recAddr
-        self.send(recAddr, {"method": "JOIN_REP", "routingTable": rt_reply})
+        self.send(recAddr, {"method": "JOIN_REP", "args": {'addr':self.addr, 'id':self.identification} ,"routingTable": rt_reply})
 
         self.logger.info(self)
-
 
     def stabilize(self, from_id, addr):
         """Process STABILIZE protocol.
             Updates all successor pointers.
-
         Parameters:
             from_id: id of the predecessor of node with address addr
             addr: address of the node sending stabilize message
@@ -96,6 +95,14 @@ class DHTNode(threading.Thread):
         self.send(self.successor_addr, {"method": "NOTIFY", "args": args})
         '''
         pass
+
+    def stay_alive(self):
+        for addr in self.routingTable.values():
+            hello_msg = {
+                "method": "ALIVE",
+                "args": {"addr": self.addr, "id": self.identification},
+            }
+            self.send(addr, hello_msg)
 
     def get(self, key, address):
         pass
@@ -117,12 +124,13 @@ class DHTNode(threading.Thread):
                 if output["method"] == "JOIN_REP":
                     """
                     JOIN_REP message with format: {'method': 'JOIN_REP',
+                    'args': {'addr':addr, 'id':id},
                     'routingTable': {'node_id': [node_addr, node_port]...}}
                     """
                     neighborRT = output["routingTable"]
-
                     # Nó atualiza a sua routing Table com a informação recebida
                     self.routingTable = {key: (value[0], value[1]) for key, value in neighborRT.items()}
+                    self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
 
                     # Nó avisa vizinhos de que entrou na rede
                     for addr in self.routingTable.values():
@@ -154,12 +162,14 @@ class DHTNode(threading.Thread):
 
             else:  # timeout occurred, lets run the stabilize algorithm
                 # Ask successor for predecessor, to start the stabilize process
-                #TODO: Update with new network configuration
+                #TODO: Update with new network configuration and check_alive()
                 #self.send(self.successor_addr, {"method": "PREDECESSOR"})
+                self.check_alive()
+                self.stay_alive()
+
                 pass
 
     def __str__(self):
-        #TODO: Add routing table
         return "Node ID: {}; DHT: {}; Routing Table: {}".format(
             self.identification,
             self.inside_dht,
@@ -205,7 +215,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--savelog", default=False, action="store_true")
     parser.add_argument("--nodes", type=int, default=3)
-    parser.add_argument("--timeout", type=int, default=3)
+    parser.add_argument("--timeout", type=int, default=10)
     args = parser.parse_args()
 
     logfile = {}
