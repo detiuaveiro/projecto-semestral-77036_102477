@@ -32,7 +32,7 @@ class DHTNode(threading.Thread):
         self.keystore = {}          # Where all data is stored
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(timeout)
-        self.logger = logging.getLogger("Node {} initialized".format(self.identification))
+        self.logger = logging.getLogger("Node {}".format(self.identification))
 
     def send(self, address, msg):
         """ Send msg to address. """
@@ -155,13 +155,15 @@ class DHTNode(threading.Thread):
             else:  # timeout occurred, lets run the stabilize algorithm
                 # Ask successor for predecessor, to start the stabilize process
                 #TODO: Update with new network configuration
-                self.send(self.successor_addr, {"method": "PREDECESSOR"})
+                #self.send(self.successor_addr, {"method": "PREDECESSOR"})
+                pass
 
     def __str__(self):
         #TODO: Add routing table
-        return "Node ID: {}; DHT: {}".format(
+        return "Node ID: {}; DHT: {}; Routing Table: {}".format(
             self.identification,
             self.inside_dht,
+            self.routingTable
         )
 
     def __repr__(self):
