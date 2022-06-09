@@ -51,7 +51,7 @@ class DHTNode(threading.Thread):
             return None, addr
         return payload, addr
 
-    def node_join(self, args):
+    def node_join(self, args, recKeystore):
         """Process JOIN_REQ message.
         Parameters:
             args (dict): addr and id of the node trying to join
@@ -72,7 +72,8 @@ class DHTNode(threading.Thread):
 
         self.routingTable[identification] = recAddr
         self.routingTableStatus[identification] = True
-        self.send(recAddr, {"method": "JOIN_REP", "args": {'addr':self.addr, 'id':self.identification}, "routingTable": rt_reply})
+        self.keystore[identification] = recKeystore
+        self.send(recAddr, {"method": "JOIN_REP", "args": {'addr':self.addr, 'id':self.identification}, "routingTable": rt_reply, "keystore": self.keystore})
 
         self.logger.info(self)
 
@@ -110,11 +111,15 @@ class DHTNode(threading.Thread):
     def run(self):
         self.socket.bind(self.addr)
 
+        # Insert node values (photos hash) in shared data structure
+        self.keystore[self.identification] = "Hello" + str(self.identification)
+
         # Loop until joining the DHT
         while not self.inside_dht:
             join_msg = {
                 "method": "JOIN_REQ",
                 "args": {"addr": self.addr, "id": self.identification},
+                "keystore" : self.keystore[self.identification],
             }
             self.send(self.dht_address, join_msg)
             payload, addr = self.recv()
@@ -134,11 +139,14 @@ class DHTNode(threading.Thread):
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
                     self.routingTableStatus[output["args"]["id"]] = True
 
+                    self.keystore = output["keystore"]
+
                     # Nó avisa vizinhos de que entrou na rede
                     for addr in self.routingTable.values():
                         hello_msg = {
                             "method": "HELLO",
                             "args": {"addr": self.addr, "id": self.identification},
+                            "keystore": self.keystore[self.identification]
                         }
                         self.send(addr, hello_msg)
 
@@ -151,13 +159,12 @@ class DHTNode(threading.Thread):
                 output = pickle.loads(payload)
                 self.logger.info("O: %s", output)
                 if output["method"] == "JOIN_REQ":
-                    self.node_join(output["args"])
-                elif output["method"] == "GET":
-                    self.get(output["args"]["key"], output["args"].get("from", addr))
+                    self.node_join(output["args"], output["keystore"])
                 elif output["method"] == "HELLO":
                     #Adição do Nó à Routing Table
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
                     self.routingTableStatus[output["args"]["id"]] = True
+                    self.keystore[output["args"]["id"]] = output["keystore"]
                     # Sending the Reply
                     self.send(addr, {"method": "HELLO_ACK", })
                     self.logger.info(self)
@@ -171,16 +178,22 @@ class DHTNode(threading.Thread):
                 elif output["method"] == "ALIVE_ACK":
                     # Changes the status of the sender to alive in the Routing Table
                     self.routingTableStatus[output["args"]["id"]] = True
+                elif output["method"] == "REQUEST":
+                    # handles the request for an image
+                    ...
+                elif output["method"] == "REQUEST_REP":
+                    # sends image to client
+                    ...
             else:  # timeout occurred, lets run the stabilize protocol
                 self.check_alive()
                 self.stay_alive()
 
     def __str__(self):
-        return "Node ID: {}; DHT: {}; Routing Table Nodes: {}; Routing Table Status: {}".format(
+        return "Node ID: {}; DHT: {}; Routing Table Nodes: {}; Keystore: {}".format(
             self.identification,
             self.inside_dht,
             self.routingTable,
-            self.routingTableStatus
+            self.keystore,
         )
 
     def __repr__(self):

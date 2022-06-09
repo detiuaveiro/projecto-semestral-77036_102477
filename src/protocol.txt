@@ -1,17 +1,20 @@
 JOIN_REQ
 Objetivo: Inserir nó ID com endereço addr na rede
 Destino: Qualquer nó presente na rede
-Mensagem:  {'method': 'JOIN_REQ', 'args': {'addr':addr, 'id':id}}
+Mensagem:  {'method': 'JOIN_REQ', 'args': {'addr':addr, 'id':id}
+, 'keystore': [hash,...]}
 
 JOIN_REP
 Objetivo: Responder a mensagem de JOIN_REQ. Nó envia a informação completa da sua routing table como resposta.
 Destino: Nó que enviou o pedido
-Mensagem: {'method': 'JOIN_REP', 'args': {'addr':addr, 'id':id}, 'routingTable': {'node_id': [node_addr, node_port]...}}
+Mensagem: {'method': 'JOIN_REP', 'args': {'addr':addr, 'id':id}
+, 'routingTable': {'node_id': [node_addr, node_port]...}
+, 'keystore': {0: [hash,...], 1: [hash,...],...}}
 
 HELLO
 Objetivo: Nó inserido na rede (com id e endereço addr) vai informar todos os outros nós de que chegou, para eles atualizarem a sua routing table.
 Destino: Nós presentes na rede.
-Mensagem: {'method': 'HELLO', 'args': {'addr':addr, 'id':id}}
+Mensagem: {'method': 'HELLO', 'args': {'addr':addr, 'id':id}, 'keystore': [hash,...]}
 
 HELLO_ACK (?-> Adicionar mecanismo de timout?)
 Objetivo: Responder à mensagem de Hello de um novo nó na rede.
@@ -28,4 +31,14 @@ Objetivo: Responder à mensagem de ALIVE de um nó que a envie
 Destino: Nó que envia a mensagem ALIVE
 mensagem: {'method': 'ALIVE_ACK', 'args': {'addr':addr, 'id':id}}
 
-ACRESCENTAR MENSAGENS DE STABILIZE E DE ENVIO/RECEÇÃO DAS HASHES
+ACRESCENTAR MENSAGENS DE ENVIO/RECEÇÃO DAS HASHES
+
+REQUEST
+Objetivo: Pedir ao nó que tem a imagem que a envie
+Destino: Nó do cliente e se este n tiver a imagem o nó que a tiver
+mensagem: {'method': 'REQUEST', 'args': {'addr':addr}, 'request': 'hash'}
+
+REQUEST_REP
+Objetivo: Responder com a imagem ao nó que a requesitou
+Destino: Nó que requesitou a imagem
+mensagem {'method': 'REQUEST_REP', 'request': image}
