@@ -178,11 +178,17 @@ class DHTNode(threading.Thread):
                 elif output["method"] == "ALIVE_ACK":
                     # Changes the status of the sender to alive in the Routing Table
                     self.routingTableStatus[output["args"]["id"]] = True
-                elif output["method"] == "REQUEST":
+                elif output["method"] == "REQUEST_IMG":
                     # handles the request for an image
                     ...
-                elif output["method"] == "REQUEST_REP":
+                elif output["method"] == "REPLY_IMG":
                     # sends image to client
+                    ...
+                elif output["method"] == "REQUEST_LIST":
+                    # handles the request the list of images per node
+                    ...
+                elif output["method"] == "REPLY_LIST":
+                    # sends list to the client
                     ...
             else:  # timeout occurred, lets run the stabilize protocol
                 self.check_alive()

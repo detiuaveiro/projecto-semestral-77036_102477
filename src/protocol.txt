@@ -33,12 +33,22 @@ mensagem: {'method': 'ALIVE_ACK', 'args': {'addr':addr, 'id':id}}
 
 ACRESCENTAR MENSAGENS DE ENVIO/RECEÇÃO DAS HASHES
 
-REQUEST
+REQUEST_IMG
 Objetivo: Pedir ao nó que tem a imagem que a envie
 Destino: Nó do cliente e se este n tiver a imagem o nó que a tiver
-mensagem: {'method': 'REQUEST', 'args': {'addr':addr}, 'request': 'hash'}
+mensagem: {'method': 'REQUEST_IMG', 'args': {'addr':addr}, 'request': 'hash'}
 
-REQUEST_REP
+REQUEST_LIST
+Objetivo: Cliente pede ao seu nó a lista de imagens disponíveis
+Destino: Nó correspondente ao cliente
+mensagem: {'method': 'REQUEST_LIST', 'args': {'addr':addr}}
+
+REPLY_IMG
 Objetivo: Responder com a imagem ao nó que a requesitou
 Destino: Nó que requesitou a imagem
-mensagem {'method': 'REQUEST_REP', 'request': image}
+mensagem {'method': 'REPLY_IMG', 'request': image}
+
+REPLY_LIST
+Objetivo: Responder a um pedido de lista com a lista dos nós e as imagens que têm
+Destino: Nó que requesitou a lista
+mensagem {'method': 'REPLY_LIST', 'request': keystore}
