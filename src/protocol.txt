@@ -50,7 +50,7 @@ mensagem: {'method': 'REQUEST_LIST'}
 REPLY_IMG
 Objetivo: Responder com a imagem ao nó que a requesitou
 Destino: Nó que requesitou a imagem
-mensagem {'method': 'REPLY_IMG', 'args': addr ,'request': image}
+mensagem {'method': 'REPLY_IMG', 'request': image}
 
 REPLY_LIST
 Objetivo: Responder a um pedido de lista com a lista dos nós e as imagens que têm
