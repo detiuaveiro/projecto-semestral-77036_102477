@@ -30,7 +30,7 @@ class DHTNode(threading.Thread):
 
         self.routingTable = {}              # Dict that will keep the adresses of the other nodes in the mesh
         self.routingTableStatus = {}        # Dict that will keep the connection status of the other nodes in the mesh
-        self.keystore = {}                  # Where all data is stored
+        self.keystore = {}                  # Where all data is stored {id: [hash,...]}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(timeout)
         self.logger = logging.getLogger("Node {}".format(self.identification))
@@ -108,11 +108,18 @@ class DHTNode(threading.Thread):
     def get(self, key, address):
         pass
 
+    def get_key(self, val):
+        for key, value in self.keystore.items():
+            if val in value:
+                return key
+
+        return "key doesn't exist"
+
     def run(self):
         self.socket.bind(self.addr)
 
         # Insert node values (photos hash) in shared data structure
-        self.keystore[self.identification] = "Hello" + str(self.identification)
+        self.keystore[self.identification] = ["Hello" + str(self.identification)]
 
         # Loop until joining the DHT
         while not self.inside_dht:
@@ -180,16 +187,21 @@ class DHTNode(threading.Thread):
                     self.routingTableStatus[output["args"]["id"]] = True
                 elif output["method"] == "REQUEST_IMG":
                     # handles the request for an image
-                    ...
-                elif output["method"] == "REPLY_IMG":
-                    # sends image to client
-                    ...
+                    if output["request"] in self.keystore[self.identification] and "args" not in output.keys():
+                        self.logger.info(output["request"])
+                        self.send(addr, {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
+                    elif "args" in output.keys():
+                        self.logger.info(output["args"])
+                        self.send(output["args"], {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
+                    else:
+                        self.send(self.routingTable[self.get_key(output["request"])], {"method": "REQUEST_IMG", "args": addr, "request": output["request"]})
                 elif output["method"] == "REQUEST_LIST":
                     # handles the request the list of images per node
-                    ...
-                elif output["method"] == "REPLY_LIST":
-                    # sends list to the client
-                    ...
+                    values = self.keystore.values()
+                    list_values = []
+                    for x in values:
+                        list_values += [y for y in x if y not in list_values]
+                    self.send(addr, {"method": "REPLY_LIST", "request": list_values})
             else:  # timeout occurred, lets run the stabilize protocol
                 self.check_alive()
                 self.stay_alive()
