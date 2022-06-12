@@ -1,3 +1,5 @@
+from PIL import Image
+import imagehash
 import logging
 import pickle
 import socket
@@ -5,7 +7,7 @@ import threading
 import time
 import sys
 import argparse
-
+import os
 
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
@@ -23,6 +25,7 @@ class DHTNode(threading.Thread):
         self.identification = id
         self.addr = address  # My address
         self.dht_address = dht_address  # Address of the initial Node
+        self.image_directory = "./node" + str(id)
         if dht_address is None:
             self.inside_dht = True
         else:
@@ -105,8 +108,16 @@ class DHTNode(threading.Thread):
 
         self.logger.info(self)
 
-    def get(self, key, address):
-        pass
+    def get(self, addr, output):
+        if output["request"] in self.keystore[self.identification] and "args" not in output.keys():
+            self.logger.info(output["request"])
+            self.send(addr, {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
+        elif "args" in output.keys():
+            self.logger.info(output["args"])
+            self.send(output["args"], {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
+        else:
+            self.send(self.routingTable[self.get_key(output["request"])],
+                      {"method": "REQUEST_IMG", "args": addr, "request": output["request"]})
 
     def get_key(self, val):
         for key, value in self.keystore.items():
@@ -115,11 +126,26 @@ class DHTNode(threading.Thread):
 
         return "key doesn't exist"
 
+    def get_images(self):
+        nodeImages = []
+        hashes = []
+
+        for image in os.listdir(self.image_directory):
+            path = self.image_directory + '/' + image
+            hash = imagehash.phash(Image.open(path))
+
+            if hash not in hashes:
+                hashes.append(hash)
+                nodeImages.append((hash, image))
+
+        return nodeImages
+
     def run(self):
         self.socket.bind(self.addr)
 
         # Insert node values (photos hash) in shared data structure
-        self.keystore[self.identification] = ["Hello" + str(self.identification)]
+        self.keystore[self.identification] = self.get_images()
+        self.logger.info(self)
 
         # Loop until joining the DHT
         while not self.inside_dht:
@@ -168,7 +194,7 @@ class DHTNode(threading.Thread):
                 if output["method"] == "JOIN_REQ":
                     self.node_join(output["args"], output["keystore"])
                 elif output["method"] == "HELLO":
-                    #Adição do Nó à Routing Table
+                    # Adding the node to the Routing Table
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
                     self.routingTableStatus[output["args"]["id"]] = True
                     self.keystore[output["args"]["id"]] = output["keystore"]
@@ -187,14 +213,7 @@ class DHTNode(threading.Thread):
                     self.routingTableStatus[output["args"]["id"]] = True
                 elif output["method"] == "REQUEST_IMG":
                     # handles the request for an image
-                    if output["request"] in self.keystore[self.identification] and "args" not in output.keys():
-                        self.logger.info(output["request"])
-                        self.send(addr, {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
-                    elif "args" in output.keys():
-                        self.logger.info(output["args"])
-                        self.send(output["args"], {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
-                    else:
-                        self.send(self.routingTable[self.get_key(output["request"])], {"method": "REQUEST_IMG", "args": addr, "request": output["request"]})
+                    self.get(addr, output)
                 elif output["method"] == "REQUEST_LIST":
                     # handles the request the list of images per node
                     values = self.keystore.values()

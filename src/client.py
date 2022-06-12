@@ -26,8 +26,14 @@ class Client:
                 print("Erro: Só podes pedir uma imagem de cada vez\n")
             else:
                 self.get_image(parameters[1])
+        elif parameters[0] == "/exit":
+            print("Closing connection...")
+            logging.debug("Closing connection...")
+            self.m_selector.unregister(sys.stdin)
+            self.socket.close()
+            quit()
         else:
-            ...
+            pass
 
     def get_list(self):
         msg = {"method": "REQUEST_LIST"}
