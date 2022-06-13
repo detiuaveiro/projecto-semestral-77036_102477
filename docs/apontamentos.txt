@@ -39,8 +39,10 @@ não só da estrutura de dados partilhada, como do próprio diretório.
 que as imagens não são perdidas caso um nó falhe, para restabelecer contacto entre os nós, etc)
 -> Quando um daemon falha devem ser replicadas noutro nó as fotos que ele guardava.
 
+DÚVIDAS:
+-> O identificador das imagens é o hash ou o nome?
+-> Perguntar se imagens parecidas do nó 2 são para eliminar ou não
+-> Cópias de recuperação
 
-IDEIAS:
--> Passar lista DHT em vez de dht_adress na inicialização de um novo nó (para salvaguardar caso o nó original morra)
-
+-> Resolver problema do tamanho da imagem ser demasiado grande
 

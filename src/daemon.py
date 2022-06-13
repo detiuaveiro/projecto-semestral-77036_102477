@@ -8,11 +8,12 @@ import time
 import sys
 import argparse
 import os
+import time
 
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
 
-    def __init__(self, address, id, dht_address=None, timeout=10):
+    def __init__(self, address, id, dht_address=None, timeout=30):
         """Constructor
 
         Parameters:
@@ -41,17 +42,25 @@ class DHTNode(threading.Thread):
     def send(self, address, msg):
         """ Send msg to address. """
         payload = pickle.dumps(msg)
+        self.socket.sendto(len(payload).to_bytes(8, 'big'), address)
         self.socket.sendto(payload, address)
 
     def recv(self):
         """ Retrieve msg payload and from address."""
         try:
-            payload, addr = self.socket.recvfrom(2048)
+            data, addr = self.socket.recvfrom(8)
+            msgSize = int.from_bytes(data, "big")
+            payload, addr = self.socket.recvfrom(msgSize)
+
+            if not data:
+                return None, None
+
         except socket.timeout:
             return None, None
 
         if len(payload) == 0:
             return None, addr
+
         return payload, addr
 
     def node_join(self, args, recKeystore):
@@ -94,6 +103,7 @@ class DHTNode(threading.Thread):
             }
             self.send(addr, hello_msg)
             self.routingTableStatus[node] = False
+            time.sleep(5)
 
     def check_alive(self):
         """
@@ -101,20 +111,23 @@ class DHTNode(threading.Thread):
             Checks all the nodes in the routing table to see if they're still alive. Removes them from the routing table if
         they're not.
         """
-        for node, status in self.routingTableStatus.items():
-            if not status:
-                self.routingTableStatus.pop(node)
-                self.routingTable.pop(node)
+
+        for node in list(self.routingTableStatus.keys()):
+            if not self.routingTableStatus[node]:
+                del self.routingTableStatus[node]
+                del self.routingTable[node]
 
         self.logger.info(self)
 
     def get(self, addr, output):
         if output["request"] in [val[1] for val in self.keystore[self.identification]] and "args" not in output.keys():
             # self.logger.info(output["request"])
-            self.send(addr, {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
+            size, img = self.send_image(output["request"])
+            self.send(addr, {"method": "REPLY_IMG", "request": img, "size": size})
         elif "args" in output.keys():
             # self.logger.info(output["args"])
-            self.send(output["args"], {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
+            size, img = self.send_image(output["request"])
+            self.send(output["args"], {"method": "REPLY_IMG", "request": img, "size": size})
         else:
             self.send(self.routingTable[self.get_key(output["request"])],
                       {"method": "REQUEST_IMG", "args": addr, "request": output["request"]})
@@ -132,15 +145,20 @@ class DHTNode(threading.Thread):
 
         for image in os.listdir(self.image_directory):
             path = self.image_directory + '/' + image
-            hash = str(imagehash.phash(Image.open(path)))
+            hash = str(imagehash.dhash(Image.open(path), 4))
 
             if hash not in hashes:
                 hashes.append(hash)
                 nodeImages.append((hash, image))
-
-        self.logger.info(nodeImages)
+            else:
+                os.remove(path)
 
         return nodeImages
+
+    def send_image(self, name):
+        img_path = self.image_directory + "/" + name
+        image = Image.open(img_path)
+        return image.size, image.tobytes()
 
     def run(self):
         self.socket.bind(self.addr)
@@ -192,7 +210,7 @@ class DHTNode(threading.Thread):
             payload, addr = self.recv()
             if payload is not None:
                 output = pickle.loads(payload)
-                self.logger.info("O: %s", output)
+                self.logger.info("%s: %s",self.identification, output)
                 if output["method"] == "JOIN_REQ":
                     self.node_join(output["args"], output["keystore"])
                 elif output["method"] == "HELLO":
@@ -274,7 +292,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--savelog", default=False, action="store_true")
     parser.add_argument("--nodes", type=int, default=3)
-    parser.add_argument("--timeout", type=int, default=10)
+    parser.add_argument("--timeout", type=int, default=30)
     args = parser.parse_args()
 
     logfile = {}

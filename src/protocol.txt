@@ -37,20 +37,19 @@ REQUEST_IMG
 Objetivo: Pedir ao nó que tem a imagem que a envie
 Destino: Nó do cliente e se este n tiver a imagem o nó que a tiver
 entre nós:
-mensagem: {'method': 'REQUEST_IMG', 'args': addr, 'request': 'hash'}
+mensagem: {'method': 'REQUEST_IMG', 'args': addr, 'request': 'name'}
 cliente:
-mensagem: {'method': 'REQUEST_IMG', 'request': 'hash'}
+mensagem: {'method': 'REQUEST_IMG', 'request': 'name'}
 
 REQUEST_LIST
 Objetivo: Cliente pede ao seu nó a lista de imagens disponíveis
 Destino: Nó correspondente ao cliente
-cliente:
 mensagem: {'method': 'REQUEST_LIST'}
 
 REPLY_IMG
 Objetivo: Responder com a imagem ao nó que a requesitou
 Destino: Nó que requesitou a imagem
-mensagem {'method': 'REPLY_IMG', 'request': image}
+mensagem {'method': 'REPLY_IMG', 'request': image_bytes, 'size': image_size}
 
 REPLY_LIST
 Objetivo: Responder a um pedido de lista com a lista dos nós e as imagens que têm

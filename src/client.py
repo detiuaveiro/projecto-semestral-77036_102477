@@ -5,6 +5,7 @@ import pickle
 import selectors
 import socket
 import sys
+from PIL import Image
 
 
 class Client:
@@ -37,9 +38,16 @@ class Client:
 
     def get_list(self):
         msg = {"method": "REQUEST_LIST"}
+
+        # Send the Message
         pickled_message = pickle.dumps(msg)
+        self.socket.sendto(len(pickled_message).to_bytes(8, 'big'), self.dht_addr)
         self.socket.sendto(pickled_message, self.dht_addr)
-        pickled_message, addr = self.socket.recvfrom(2048)
+
+        # Receive the Reply
+        data, addr = self.socket.recvfrom(8)
+        msgSize = int.from_bytes(data, "big")
+        pickled_message, addr = self.socket.recvfrom(msgSize)
         out = pickle.loads(pickled_message)
         if out["method"] != "REPLY_LIST":
             self.logger.error("Invalid msg: %s", out)
@@ -48,14 +56,23 @@ class Client:
 
     def get_image(self, hash):
         msg = {"method": "REQUEST_IMG", "request": hash}
+
+        # Send the Message
         pickled_message = pickle.dumps(msg)
+        self.socket.sendto(len(pickled_message).to_bytes(8, 'big'), self.dht_addr)
         self.socket.sendto(pickled_message, self.dht_addr)
-        pickled_message, addr = self.socket.recvfrom(2048)
+
+        # Receive the Reply
+        data, addr = self.socket.recvfrom(8)
+        msgSize = int.from_bytes(data, "big")
+        pickled_message, addr = self.socket.recvfrom(msgSize)
         out = pickle.loads(pickled_message)
         if out["method"] != "REPLY_IMG":
             self.logger.error("Invalid msg: %s", out)
             return None
-        return print(out["request"])
+        img = Image.frombytes("RGB", out["size"], out["request"])
+        img.show()
+        return img
 
     def loop(self):
         """Loop indefinitely."""
