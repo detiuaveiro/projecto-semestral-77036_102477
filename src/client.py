@@ -39,7 +39,7 @@ class Client:
         msg = {"method": "REQUEST_LIST"}
         pickled_message = pickle.dumps(msg)
         self.socket.sendto(pickled_message, self.dht_addr)
-        pickled_message, addr = self.socket.recvfrom(1024)
+        pickled_message, addr = self.socket.recvfrom(2048)
         out = pickle.loads(pickled_message)
         if out["method"] != "REPLY_LIST":
             self.logger.error("Invalid msg: %s", out)
@@ -50,7 +50,7 @@ class Client:
         msg = {"method": "REQUEST_IMG", "request": hash}
         pickled_message = pickle.dumps(msg)
         self.socket.sendto(pickled_message, self.dht_addr)
-        pickled_message, addr = self.socket.recvfrom(1024)
+        pickled_message, addr = self.socket.recvfrom(2048)
         out = pickle.loads(pickled_message)
         if out["method"] != "REPLY_IMG":
             self.logger.error("Invalid msg: %s", out)

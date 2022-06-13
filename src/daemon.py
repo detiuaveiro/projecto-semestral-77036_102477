@@ -46,7 +46,7 @@ class DHTNode(threading.Thread):
     def recv(self):
         """ Retrieve msg payload and from address."""
         try:
-            payload, addr = self.socket.recvfrom(1024)
+            payload, addr = self.socket.recvfrom(2048)
         except socket.timeout:
             return None, None
 
@@ -109,11 +109,11 @@ class DHTNode(threading.Thread):
         self.logger.info(self)
 
     def get(self, addr, output):
-        if output["request"] in self.keystore[self.identification] and "args" not in output.keys():
-            self.logger.info(output["request"])
+        if output["request"] in [val[1] for val in self.keystore[self.identification]] and "args" not in output.keys():
+            # self.logger.info(output["request"])
             self.send(addr, {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
         elif "args" in output.keys():
-            self.logger.info(output["args"])
+            # self.logger.info(output["args"])
             self.send(output["args"], {"method": "REPLY_IMG", "request": self.keystore[self.identification]})
         else:
             self.send(self.routingTable[self.get_key(output["request"])],
@@ -121,7 +121,7 @@ class DHTNode(threading.Thread):
 
     def get_key(self, val):
         for key, value in self.keystore.items():
-            if val in value:
+            if val in [val[1] for val in value]:
                 return key
 
         return "key doesn't exist"
@@ -132,11 +132,13 @@ class DHTNode(threading.Thread):
 
         for image in os.listdir(self.image_directory):
             path = self.image_directory + '/' + image
-            hash = imagehash.phash(Image.open(path))
+            hash = str(imagehash.phash(Image.open(path)))
 
             if hash not in hashes:
                 hashes.append(hash)
                 nodeImages.append((hash, image))
+
+        self.logger.info(nodeImages)
 
         return nodeImages
 
@@ -219,7 +221,7 @@ class DHTNode(threading.Thread):
                     values = self.keystore.values()
                     list_values = []
                     for x in values:
-                        list_values += [y for y in x if y not in list_values]
+                        list_values += [y[1] for y in x if y[1] not in list_values]
                     self.send(addr, {"method": "REPLY_LIST", "request": list_values})
             else:  # timeout occurred, lets run the stabilize protocol
                 self.check_alive()
