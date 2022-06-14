@@ -4,11 +4,12 @@ import logging
 import pickle
 import socket
 import threading
-import time
+from time import sleep
 import sys
 import argparse
 import os
 import time
+from math  import ceil
 
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
@@ -103,7 +104,7 @@ class DHTNode(threading.Thread):
             }
             self.send(addr, hello_msg)
             self.routingTableStatus[node] = False
-            time.sleep(5)
+            sleep(5)
 
     def check_alive(self):
         """
@@ -122,12 +123,10 @@ class DHTNode(threading.Thread):
     def get(self, addr, output):
         if output["request"] in [val[1] for val in self.keystore[self.identification]] and "args" not in output.keys():
             # self.logger.info(output["request"])
-            size, img = self.send_image(output["request"])
-            self.send(addr, {"method": "REPLY_IMG", "request": img, "size": size})
+            self.send_image(addr, output["request"])
         elif "args" in output.keys():
             # self.logger.info(output["args"])
-            size, img = self.send_image(output["request"])
-            self.send(output["args"], {"method": "REPLY_IMG", "request": img, "size": size})
+            self.send_image(output["args"], output["request"])
         else:
             self.send(self.routingTable[self.get_key(output["request"])],
                       {"method": "REQUEST_IMG", "args": addr, "request": output["request"]})
@@ -155,10 +154,18 @@ class DHTNode(threading.Thread):
 
         return nodeImages
 
-    def send_image(self, name):
+    def send_image(self, addr, name):
         img_path = self.image_directory + "/" + name
         image = Image.open(img_path)
-        return image.size, image.tobytes()
+
+        size = image.size
+        img_bytes = image.tobytes()
+
+        packages = ceil(len(img_bytes)/4000)
+        self.send(addr, {"method": "REPLY_IMG", "size": size, "totalPackages": packages})
+
+        for i in range(packages):
+            self.send(addr, {"method": "REPLY_IMG", 'package': i+1, 'request': img_bytes[i*4000:(i+1)*4000]})
 
     def run(self):
         self.socket.bind(self.addr)
@@ -271,7 +278,7 @@ def main(number_nodes, timeout):
     logger.info(node)
 
     for i in range(number_nodes - 1):
-        time.sleep(0.2)
+        sleep(0.2)
         # Create DHT_Node threads on ports 5001++ and with initial DHT_Node on port 5000
         node = DHTNode(("localhost", 5001 + i), i+1, ("localhost", 5000), timeout)
         node.start()
@@ -279,7 +286,7 @@ def main(number_nodes, timeout):
         logger.info(node)
 
     # Await for DHT to get stable
-    time.sleep(10)
+    sleep(10)
 
     # Await for all nodes to stop
     for node in dht:
