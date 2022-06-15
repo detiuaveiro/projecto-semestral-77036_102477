@@ -14,7 +14,7 @@ from math  import ceil
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
 
-    def __init__(self, address, id, dht_address=None, timeout=30):
+    def __init__(self, address, id, dht_address=None, timeout=20):
         """Constructor
 
         Parameters:
@@ -43,8 +43,21 @@ class DHTNode(threading.Thread):
     def send(self, address, msg):
         """ Send msg to address. """
         payload = pickle.dumps(msg)
-        self.socket.sendto(len(payload).to_bytes(8, 'big'), address)
-        self.socket.sendto(payload, address)
+
+        # send message size
+        msg_size = len(payload)
+        self.socket.sendto(msg_size.to_bytes(8, 'big'), address)
+
+        # if the image is to big it will divide it in parts and send them
+        # note that we are assuming that the messages will arrive ir order
+        size = 0
+        if msg_size > 4096:
+            while size < msg_size:
+                self.socket.sendto(payload[size: 4096+(size+1)], address)
+                size += 4096
+                sleep(0.0007)
+        else:
+            self.socket.sendto(payload, address)
 
     def recv(self):
         """ Retrieve msg payload and from address."""
@@ -104,7 +117,7 @@ class DHTNode(threading.Thread):
             }
             self.send(addr, hello_msg)
             self.routingTableStatus[node] = False
-            sleep(5)
+            sleep(3)
 
     def check_alive(self):
         """
@@ -159,13 +172,19 @@ class DHTNode(threading.Thread):
         image = Image.open(img_path)
 
         size = image.size
+        mode = image.mode
         img_bytes = image.tobytes()
 
+        self.send(addr, {"medod": "REPLY_IMG", "request": image})
+
+        '''
         packages = ceil(len(img_bytes)/4000)
-        self.send(addr, {"method": "REPLY_IMG", "size": size, "totalPackages": packages})
+        self.send(addr, {"method": "REPLY_IMG", "size": size, "totalPackages": packages, "mode": mode})
 
         for i in range(packages):
             self.send(addr, {"method": "REPLY_IMG", 'package': i+1, 'request': img_bytes[i*4000:(i+1)*4000]})
+            sleep(0.0005)
+        '''
 
     def run(self):
         self.socket.bind(self.addr)
@@ -299,7 +318,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--savelog", default=False, action="store_true")
     parser.add_argument("--nodes", type=int, default=3)
-    parser.add_argument("--timeout", type=int, default=30)
+    parser.add_argument("--timeout", type=int, default=20)
     args = parser.parse_args()
 
     logfile = {}

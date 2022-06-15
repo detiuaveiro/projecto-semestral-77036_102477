@@ -62,6 +62,20 @@ class Client:
         self.socket.sendto(len(pickled_message).to_bytes(8, 'big'), self.dht_addr)
         self.socket.sendto(pickled_message, self.dht_addr)
 
+        data, addr = self.socket.recvfrom(8)
+        msg_size = int.from_bytes(data, "big")
+
+        size = 0
+        msg_bytes = bytes("".encode('UTF-8'))
+        while size < msg_size:
+            data, addr = self.socket.recvfrom(4096)
+            msg_bytes += data
+            size += 4096
+
+        out = pickle.loads(msg_bytes)
+        img = out["request"]
+
+        '''
         # Reply
         # Receiving the image size and the total number of packets
         data, addr = self.socket.recvfrom(8)
@@ -71,24 +85,30 @@ class Client:
         if out["method"] != "REPLY_IMG":
             self.logger.error("Invalid msg: %s", out)
             return None
+
         img_size = out["size"]
         total_packages = out["totalPackages"]
+        img_mode = out["mode"]
+
         img_bytes = bytes("".encode('UTF-8'))
+        
         # Receiving the packets with the images
         for i in range(total_packages):
             data, addr = self.socket.recvfrom(8)
             msgSize = int.from_bytes(data, "big")
-            print(msgSize)
 
             pickled_message, addr = self.socket.recvfrom(msgSize)
             out = pickle.loads(pickled_message)
             if out["method"] != "REPLY_IMG":
                 self.logger.error("Invalid msg: %s", out)
                 return None
-
             img_bytes += out["request"]
+            print(img_bytes)
 
-        img = Image.frombytes("RGB", img_size, img_bytes)
+
+        img = Image.frombytes(img_mode, img_size, img_bytes)
+        '''
+
         img.show()
         return img
 

@@ -1,3 +1,5 @@
+import pickle
+
 from PIL import Image
 import imagehash
 import os
@@ -12,6 +14,9 @@ for image in os.listdir(image_directory):
     print(hash)
 '''
 
-img_path = "./node0/010_Aveiro.jpg"
+img_path = "./node2/01Travasso_Jan1922.jpg"
 image = Image.open(img_path)
-print(image.tobytes())
+
+pickle_msg = pickle.dumps(image)
+
+print(pickle_msg)

@@ -49,7 +49,7 @@ mensagem: {'method': 'REQUEST_LIST'}
 REPLY_IMG
 Objetivo: Responder com a imagem ao nó que a requesitou
 Destino: Nó que requesitou a imagem
-mensagem {'method': 'REPLY_IMG', 'size': image_size, 'totalPackages': packages_totais, 'package': package_atual 'request': image_bytes}
+mensagem {'method': 'REPLY_IMG', 'size': image_size, 'totalPackages': packages_totais, 'package': package_atual, 'mode': image.mode, 'request': image_bytes}
 
 REPLY_LIST
 Objetivo: Responder a um pedido de lista com a lista dos nós e as imagens que têm
