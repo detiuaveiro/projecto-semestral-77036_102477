@@ -5,11 +5,12 @@ import pickle
 import socket
 import threading
 from time import sleep
-import sys
 import argparse
 import os
-import time
-from math  import ceil
+# import sys
+# import time
+# from math import ceil
+
 
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
@@ -33,9 +34,9 @@ class DHTNode(threading.Thread):
         else:
             self.inside_dht = False
 
-        self.routingTable = {}              # Dict that will keep the adresses of the other nodes in the mesh
-        self.routingTableStatus = {}        # Dict that will keep the connection status of the other nodes in the mesh
-        self.keystore = {}                  # Where all data is stored {id: [hash,...]}
+        self.routingTable = {}  # Dict that will keep the adresses of the other nodes in the mesh
+        self.routingTableStatus = {}  # Dict that will keep the connection status of the other nodes in the mesh
+        self.keystore = {}  # Where all data is stored {id: [hash,...]}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(timeout)
         self.logger = logging.getLogger("Node {}".format(self.identification))
@@ -53,9 +54,9 @@ class DHTNode(threading.Thread):
         size = 0
         if msg_size > 4096:
             while size < msg_size:
-                self.socket.sendto(payload[size: 4096+(size+1)], address)
+                self.socket.sendto(payload[size: 4096 + (size + 1)], address)
                 size += 4096
-                sleep(0.0007)
+                sleep(0.001)
         else:
             self.socket.sendto(payload, address)
 
@@ -99,7 +100,8 @@ class DHTNode(threading.Thread):
         self.routingTable[identification] = recAddr
         self.routingTableStatus[identification] = True
         self.keystore[identification] = recKeystore
-        self.send(recAddr, {"method": "JOIN_REP", "args": {'addr':self.addr, 'id':self.identification}, "routingTable": rt_reply, "keystore": self.keystore})
+        self.send(recAddr, {"method": "JOIN_REP", "args": {'addr': self.addr, 'id': self.identification},
+                            "routingTable": rt_reply, "keystore": self.keystore})
 
         self.logger.info(self)
 
@@ -117,7 +119,7 @@ class DHTNode(threading.Thread):
             }
             self.send(addr, hello_msg)
             self.routingTableStatus[node] = False
-            sleep(3)
+            sleep(3.5)
 
     def check_alive(self):
         """
@@ -157,11 +159,11 @@ class DHTNode(threading.Thread):
 
         for image in os.listdir(self.image_directory):
             path = self.image_directory + '/' + image
-            hash = str(imagehash.dhash(Image.open(path), 4))
+            img_hash = str(imagehash.dhash(Image.open(path), 4))
 
-            if hash not in hashes:
-                hashes.append(hash)
-                nodeImages.append((hash, image))
+            if img_hash not in hashes:
+                hashes.append(img_hash)
+                nodeImages.append((img_hash, image))
             else:
                 os.remove(path)
 
@@ -171,11 +173,13 @@ class DHTNode(threading.Thread):
         img_path = self.image_directory + "/" + name
         image = Image.open(img_path)
 
+        '''
         size = image.size
         mode = image.mode
         img_bytes = image.tobytes()
+        '''
 
-        self.send(addr, {"medod": "REPLY_IMG", "request": image})
+        self.send(addr, {"method": "REPLY_IMG", "request": image})
 
         '''
         packages = ceil(len(img_bytes)/4000)
@@ -198,7 +202,7 @@ class DHTNode(threading.Thread):
             join_msg = {
                 "method": "JOIN_REQ",
                 "args": {"addr": self.addr, "id": self.identification},
-                "keystore" : self.keystore[self.identification],
+                "keystore": self.keystore[self.identification],
             }
             self.send(self.dht_address, join_msg)
             payload, addr = self.recv()
@@ -236,7 +240,7 @@ class DHTNode(threading.Thread):
             payload, addr = self.recv()
             if payload is not None:
                 output = pickle.loads(payload)
-                self.logger.info("%s: %s",self.identification, output)
+                self.logger.info("%s: %s", self.identification, output)
                 if output["method"] == "JOIN_REQ":
                     self.node_join(output["args"], output["keystore"])
                 elif output["method"] == "HELLO":
@@ -267,7 +271,7 @@ class DHTNode(threading.Thread):
                     for x in values:
                         list_values += [y[1] for y in x if y[1] not in list_values]
                     self.send(addr, {"method": "REPLY_LIST", "request": list_values})
-            else:  # timeout occurred, lets run the stabilize protocol
+            else:  # timeout occurred, lets run stabilize protocol
                 self.check_alive()
                 self.stay_alive()
 
@@ -299,7 +303,7 @@ def main(number_nodes, timeout):
     for i in range(number_nodes - 1):
         sleep(0.2)
         # Create DHT_Node threads on ports 5001++ and with initial DHT_Node on port 5000
-        node = DHTNode(("localhost", 5001 + i), i+1, ("localhost", 5000), timeout)
+        node = DHTNode(("localhost", 5001 + i), i + 1, ("localhost", 5000), timeout)
         node.start()
         dht.append(node)
         logger.info(node)
@@ -331,5 +335,7 @@ if __name__ == "__main__":
         datefmt="%m-%d %H:%M:%S",
         **logfile
     )
+
+    logging.getLogger('PIL').setLevel(logging.WARNING)
 
     main(args.nodes, timeout=args.timeout)

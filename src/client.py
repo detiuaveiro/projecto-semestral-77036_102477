@@ -5,7 +5,10 @@ import pickle
 import selectors
 import socket
 import sys
-from PIL import Image
+import time
+
+
+# from PIL import Image
 
 
 class Client:
@@ -17,8 +20,8 @@ class Client:
         self.m_selector.register(sys.stdin, selectors.EVENT_READ, self.got_keyboard_data)
 
     def got_keyboard_data(self, stdin):
-        keyboardInput = stdin.read()
-        parameters = keyboardInput.rstrip().split()
+        keyboard_input = stdin.read()
+        parameters = keyboard_input.rstrip().split()
 
         if parameters[0] == "/list":
             self.get_list()
@@ -46,34 +49,38 @@ class Client:
 
         # Receive the Reply
         data, addr = self.socket.recvfrom(8)
-        msgSize = int.from_bytes(data, "big")
-        pickled_message, addr = self.socket.recvfrom(msgSize)
+        msg_size = int.from_bytes(data, "big")
+        pickled_message, addr = self.socket.recvfrom(msg_size)
         out = pickle.loads(pickled_message)
         if out["method"] != "REPLY_LIST":
             self.logger.error("Invalid msg: %s", out)
             return None
-        return print(out["request"])
 
-    def get_image(self, hash):
-        msg = {"method": "REQUEST_IMG", "request": hash}
+        print(out["request"])
+
+        return out["request"]
+
+    def get_image(self, name):
+        msg = {"method": "REQUEST_IMG", "request": name}
 
         # Send the Message
         pickled_message = pickle.dumps(msg)
         self.socket.sendto(len(pickled_message).to_bytes(8, 'big'), self.dht_addr)
         self.socket.sendto(pickled_message, self.dht_addr)
 
+        # Receive the Reply
         data, addr = self.socket.recvfrom(8)
         msg_size = int.from_bytes(data, "big")
 
         size = 0
         msg_bytes = bytes("".encode('UTF-8'))
-        while size < msg_size:
+        start = time.time()
+        update = 0
+        while size < msg_size and update < 7:
             data, addr = self.socket.recvfrom(4096)
             msg_bytes += data
             size += 4096
-
-        out = pickle.loads(msg_bytes)
-        img = out["request"]
+            update = time.time() - start
 
         '''
         # Reply
@@ -109,8 +116,14 @@ class Client:
         img = Image.frombytes(img_mode, img_size, img_bytes)
         '''
 
-        img.show()
-        return img
+        try:
+            out = pickle.loads(msg_bytes)
+            img = out["request"]
+            img.show()
+            return img
+        finally:
+            print("There was a problem, try asking again!")
+            return 0
 
     def loop(self):
         """Loop indefinitely."""
@@ -129,4 +142,3 @@ class Client:
 if __name__ == "__main__":
     client = Client(("localhost", 5000))
     client.loop()
-
