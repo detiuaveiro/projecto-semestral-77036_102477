@@ -37,6 +37,7 @@ class DHTNode(threading.Thread):
         self.routingTable = {}  # Dict that will keep the adresses of the other nodes in the mesh
         self.routingTableStatus = {}  # Dict that will keep the connection status of the other nodes in the mesh
         self.keystore = {}  # Where all data is stored {id: [hash,...]}
+        self.backupLocations = {}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(timeout)
         self.logger = logging.getLogger("Node {}".format(self.identification))
@@ -190,6 +191,22 @@ class DHTNode(threading.Thread):
             sleep(0.0005)
         '''
 
+    def set_backups(self):
+        #TODO: Fazer função send_backup e lidar com a receção de backups de outros nós
+        peers = len(self.routingTable.keys())
+        images = len(self.keystore[self.identification])
+
+        imagePerPeer = images//peers
+        sentImageIdx = 0
+
+        for key, value in self.routingTable.items():
+            for i in range(imagePerPeer):
+                self.send_backup(value, self.keystore[self.identification][sentImageIdx])
+                sentImageIdx += 1
+
+        if sentImageIdx != images - 1:
+            self.send_backup(self.routingTable[0], self.keystore[self.identification][sentImageIdx])
+
     def run(self):
         self.socket.bind(self.addr)
 
@@ -274,6 +291,8 @@ class DHTNode(threading.Thread):
             else:  # timeout occurred, lets run stabilize protocol
                 self.check_alive()
                 self.stay_alive()
+                if not self.backupLocations and len(self.routingTable.keys()) >= 2:
+                    self.set_backups()
 
     def __str__(self):
         return "Node ID: {}; DHT: {}; Routing Table Nodes: {}; Keystore: {}".format(

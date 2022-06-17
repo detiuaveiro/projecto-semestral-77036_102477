@@ -40,9 +40,5 @@ que as imagens não são perdidas caso um nó falhe, para restabelecer contacto 
 -> Quando um daemon falha devem ser replicadas noutro nó as fotos que ele guardava.
 
 DÚVIDAS:
--> O identificador das imagens é o hash ou o nome?
--> Perguntar se imagens parecidas do nó 2 são para eliminar ou não
--> Cópias de recuperação
-
--> Resolver problema do tamanho da imagem ser demasiado grande
-
+-> É possível duas imagens repetidas irem parar a 2 nós diferentes? Se sim, temos que detetar e eliminar?
+-> Estratégia de backup -> quando executar?

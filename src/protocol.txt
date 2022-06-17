@@ -57,6 +57,8 @@ Destino: Nó que requesitou a lista
 mensagem {'method': 'REPLY_LIST', 'request': [all hashes]}
 
 
+TODO: Adicionar mensagens para protocolo de backup
+
 Opções do Cliente:
 /list -> listar todas as imagens guardadas no sistema
 /image hash -> obter a imagem com a hash correspondente

@@ -76,11 +76,22 @@ class Client:
         msg_bytes = bytes("".encode('UTF-8'))
         start = time.time()
         update = 0
-        while size < msg_size and update < 7:
-            data, addr = self.socket.recvfrom(4096)
+        while size < msg_size:
+            update = time.time() - start
+            if (update > 7):
+                break
+
+            try:
+                data, addr = self.socket.recvfrom(4096)
+            except socket.timeout:
+                print("Socket timeout")
+                return 0
+
+            if len(data) == 0:
+                return 0
+
             msg_bytes += data
             size += 4096
-            update = time.time() - start
 
         '''
         # Reply
