@@ -1,3 +1,5 @@
+MENSAGENS PARA GESTÃO DA REDE DE NÓS
+
 JOIN_REQ
 Objetivo: Inserir nó ID com endereço addr na rede
 Destino: Qualquer nó presente na rede
@@ -31,7 +33,7 @@ Objetivo: Responder à mensagem de ALIVE de um nó que a envie
 Destino: Nó que envia a mensagem ALIVE
 mensagem: {'method': 'ALIVE_ACK', 'args': {'addr':addr, 'id':id}}
 
-ACRESCENTAR MENSAGENS DE ENVIO/RECEÇÃO DAS HASHES
+MENSAGENS PARA PEDIDO DE IMAGENS
 
 REQUEST_IMG
 Objetivo: Pedir ao nó que tem a imagem que a envie
@@ -49,13 +51,24 @@ mensagem: {'method': 'REQUEST_LIST'}
 REPLY_IMG
 Objetivo: Responder com a imagem ao nó que a requesitou
 Destino: Nó que requesitou a imagem
-mensagem {'method': 'REPLY_IMG', 'size': image_size, 'totalPackages': packages_totais, 'package': package_atual, 'mode': image.mode, 'request': image_bytes}
+mensagem {'method': 'REPLY_IMG', 'request': image}
 
 REPLY_LIST
 Objetivo: Responder a um pedido de lista com a lista dos nós e as imagens que têm
 Destino: Nó que requesitou a lista
 mensagem {'method': 'REPLY_LIST', 'request': [all hashes]}
 
+MENSAGENS PARA BACKUP DAS IMAGENS GUARDADAS PELOS NÓS
+
+SEND_BACKUP
+Objetivo: Enviar uma cópia de uma imagem pertencente ao nó origem para o nó destino guardar como backup
+Destino: Nó que vai guardar a imagem como backup
+mensagem {'method': 'SEND_BACKUP', 'id': requesting_node_id, 'request': image, 'info': [hash, name]}
+
+BACKUP_ACK
+Objetivo: Ack de receção da imagem guardada como backup
+Destino: Nó que tem a cópia original da imagem
+mensagem {'method': 'BACKUP_ACK', 'info': [hash, name]}
 
 TODO: Adicionar mensagens para protocolo de backup
 

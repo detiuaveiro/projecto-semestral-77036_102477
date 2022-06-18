@@ -75,7 +75,6 @@ class Client:
         size = 0
         msg_bytes = bytes("".encode('UTF-8'))
         start = time.time()
-        update = 0
         while size < msg_size:
             update = time.time() - start
             if (update > 7):

@@ -5,14 +5,10 @@ import imagehash
 import os
 import time
 
-'''
-image_directory = "./node" + str(0)
+image_directory = "node" + str(0)
 
 for image in os.listdir(image_directory):
-    path = image_directory + '/' + image
-    hash = str(imagehash.phash(Image.open(path)))
-    print(path)
-    print(hash)
+    print(image)
 '''
 i = 0
 x = 10
@@ -24,3 +20,4 @@ while i < x and update < 5:
     update = time.time() - start
     print(update)
     i += 1
+'''

@@ -4,11 +4,9 @@ import logging
 import pickle
 import socket
 import threading
-from time import sleep
+from time import time, sleep
 import argparse
 import os
-# import sys
-# import time
 # from math import ceil
 
 
@@ -51,7 +49,7 @@ class DHTNode(threading.Thread):
         self.socket.sendto(msg_size.to_bytes(8, 'big'), address)
 
         # if the image is to big it will divide it in parts and send them
-        # note that we are assuming that the messages will arrive ir order
+        # note that we are assuming that the messages will arrive in order
         size = 0
         if msg_size > 4096:
             while size < msg_size:
@@ -66,10 +64,25 @@ class DHTNode(threading.Thread):
         try:
             data, addr = self.socket.recvfrom(8)
             msgSize = int.from_bytes(data, "big")
-            payload, addr = self.socket.recvfrom(msgSize)
 
             if not data:
                 return None, None
+
+            if msgSize > 4096:
+                size = 0
+                payload = bytes("".encode('UTF-8'))
+                start = time()
+                while size < msgSize:
+                    update = time() - start
+                    if (update > 7):
+                        break
+
+                    data, addr = self.socket.recvfrom(4096)
+
+                    payload += data
+                    size += 4096
+            else:
+                payload, addr = self.socket.recvfrom(msgSize)
 
         except socket.timeout:
             return None, None
@@ -207,6 +220,25 @@ class DHTNode(threading.Thread):
         if sentImageIdx != images - 1:
             self.send_backup(self.routingTable[0], self.keystore[self.identification][sentImageIdx])
 
+    def send_backup(self, addr, imageInfo):
+        img_path = self.image_directory + "/" + imageInfo[1]
+        image = Image.open(img_path)
+
+        backup_msg = {
+            "method": "SEND_BACKUP",
+            "id": self.identification,
+            "request": image,
+            "info": imageInfo,
+        }
+
+        self.send(addr, backup_msg)
+
+    def receive_backup(self, addr, output):
+        # Verificar se o diretório de backup do nó em questão já existe
+        for entry in os.listdir(self.image_directory):
+            if entry == "backup_node" + output["id"]:
+                pass
+
     def run(self):
         self.socket.bind(self.addr)
 
@@ -288,6 +320,11 @@ class DHTNode(threading.Thread):
                     for x in values:
                         list_values += [y[1] for y in x if y[1] not in list_values]
                     self.send(addr, {"method": "REPLY_LIST", "request": list_values})
+                elif output["method"] == "SEND_BACKUP":
+                    self.receive_backup(addr, output)
+                elif output["method"] == "BACKUP_ACK":
+                    pass
+
             else:  # timeout occurred, lets run stabilize protocol
                 self.check_alive()
                 self.stay_alive()
