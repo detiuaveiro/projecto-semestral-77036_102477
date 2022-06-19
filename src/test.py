@@ -7,8 +7,8 @@ import time
 
 image_directory = "node" + str(0)
 
-for image in os.listdir(image_directory):
-    print(image)
+if "backup_node0" in os.listdir(image_directory):
+    print("fixe")
 '''
 i = 0
 x = 10

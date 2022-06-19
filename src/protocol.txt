@@ -63,12 +63,12 @@ MENSAGENS PARA BACKUP DAS IMAGENS GUARDADAS PELOS NÓS
 SEND_BACKUP
 Objetivo: Enviar uma cópia de uma imagem pertencente ao nó origem para o nó destino guardar como backup
 Destino: Nó que vai guardar a imagem como backup
-mensagem {'method': 'SEND_BACKUP', 'id': requesting_node_id, 'request': image, 'info': [hash, name]}
+mensagem {'method': 'SEND_BACKUP', 'id': requesting_node_id, 'request': [image, ...], 'info': [name, ...]}
 
 BACKUP_ACK
 Objetivo: Ack de receção da imagem guardada como backup
 Destino: Nó que tem a cópia original da imagem
-mensagem {'method': 'BACKUP_ACK', 'info': [hash, name]}
+mensagem {'method': 'BACKUP_ACK', 'info': [name, ...]}
 
 TODO: Adicionar mensagens para protocolo de backup
 

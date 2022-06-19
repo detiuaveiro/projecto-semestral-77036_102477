@@ -34,7 +34,7 @@ class DHTNode(threading.Thread):
 
         self.routingTable = {}  # Dict that will keep the adresses of the other nodes in the mesh
         self.routingTableStatus = {}  # Dict that will keep the connection status of the other nodes in the mesh
-        self.keystore = {}  # Where all data is stored {id: [hash,...]}
+        self.keystore = {}  # Where all data is stored {id: [name,...]}
         self.backupLocations = {}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(timeout)
@@ -71,12 +71,7 @@ class DHTNode(threading.Thread):
             if msgSize > 4096:
                 size = 0
                 payload = bytes("".encode('UTF-8'))
-                start = time()
                 while size < msgSize:
-                    update = time() - start
-                    if (update > 7):
-                        break
-
                     data, addr = self.socket.recvfrom(4096)
 
                     payload += data
@@ -212,32 +207,54 @@ class DHTNode(threading.Thread):
         imagePerPeer = images//peers
         sentImageIdx = 0
 
-        for key, value in self.routingTable.items():
-            for i in range(imagePerPeer):
-                self.send_backup(value, self.keystore[self.identification][sentImageIdx])
-                sentImageIdx += 1
+        rt_keys = list(self.routingTable.keys())
 
-        if sentImageIdx != images - 1:
-            self.send_backup(self.routingTable[0], self.keystore[self.identification][sentImageIdx])
+        for i in range(peers-1):
+            self.send_backup(self.routingTable[rt_keys[i]], self.keystore[self.identification][sentImageIdx:sentImageIdx+imagePerPeer])
+            sentImageIdx += imagePerPeer
 
-    def send_backup(self, addr, imageInfo):
-        img_path = self.image_directory + "/" + imageInfo[1]
-        image = Image.open(img_path)
+        self.send_backup(self.routingTable[rt_keys[-1]], self.keystore[self.identification][sentImageIdx:])
+
+    def send_backup(self, addr, imageList):
+        all_img = []
+        all_img_info = []
+        for imageInfo in imageList:
+            img_path = self.image_directory + "/" + imageInfo[1]
+            image = Image.open(img_path)
+            all_img.append(image)
+            all_img_info.append(imageInfo[1])
 
         backup_msg = {
             "method": "SEND_BACKUP",
             "id": self.identification,
-            "request": image,
-            "info": imageInfo,
+            "request": all_img,
+            "info": all_img_info,
         }
 
         self.send(addr, backup_msg)
 
     def receive_backup(self, addr, output):
         # Verificar se o diretório de backup do nó em questão já existe
-        for entry in os.listdir(self.image_directory):
-            if entry == "backup_node" + output["id"]:
-                pass
+        if "backup_node" + str(output["id"]) not in os.listdir(self.image_directory):
+            os.mkdir(os.path.join(self.image_directory,"backup_node" + str(output["id"])))
+
+        for i in range(len(output["request"])):
+            image = output["request"][i]
+            image.save(os.path.join(self.image_directory, "backup_node" + str(output["id"]) + "/" + output["info"][i]))
+
+        backup_ack_msg = {
+            "method": "BACKUP_ACK",
+            "id": self.identification,
+            "info": output["info"],
+        }
+
+        self.send(addr, backup_ack_msg)
+
+    def stabilize(self):
+        self.check_alive()
+        self.stay_alive()
+        if not self.backupLocations and len(self.routingTable.keys()) >= 2:
+            self.set_backups()
 
     def run(self):
         self.socket.bind(self.addr)
@@ -323,20 +340,18 @@ class DHTNode(threading.Thread):
                 elif output["method"] == "SEND_BACKUP":
                     self.receive_backup(addr, output)
                 elif output["method"] == "BACKUP_ACK":
-                    pass
+                    self.backupLocations[output["id"]] = output["info"]
 
             else:  # timeout occurred, lets run stabilize protocol
-                self.check_alive()
-                self.stay_alive()
-                if not self.backupLocations and len(self.routingTable.keys()) >= 2:
-                    self.set_backups()
+                self.stabilize()
 
     def __str__(self):
-        return "Node ID: {}; DHT: {}; Routing Table Nodes: {}; Keystore: {}".format(
+        return "Node ID: {}; DHT: {}; Routing Table Nodes: {}; Keystore: {}; backupLocations: {}".format(
             self.identification,
             self.inside_dht,
             self.routingTable,
             self.keystore,
+            self.backupLocations,
         )
 
     def __repr__(self):
@@ -345,7 +360,6 @@ class DHTNode(threading.Thread):
 
 def main(number_nodes, timeout):
     """ Script to launch several DHT nodes. """
-
     # logger for the main
     logger = logging.getLogger("DHT")
     # list with all the nodes
@@ -358,6 +372,7 @@ def main(number_nodes, timeout):
 
     for i in range(number_nodes - 1):
         sleep(0.2)
+        timeout += 3
         # Create DHT_Node threads on ports 5001++ and with initial DHT_Node on port 5000
         node = DHTNode(("localhost", 5001 + i), i + 1, ("localhost", 5000), timeout)
         node.start()
