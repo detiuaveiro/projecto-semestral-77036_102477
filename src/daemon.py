@@ -7,13 +7,15 @@ import threading
 from time import time, sleep
 import argparse
 import os
+
+
 # from math import ceil
 
 
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
 
-    def __init__(self, address, id, dht_address=None, timeout=20):
+    def __init__(self, address, id, dht_address=None, timeout=5):
         """Constructor
 
         Parameters:
@@ -128,7 +130,7 @@ class DHTNode(threading.Thread):
             }
             self.send(addr, hello_msg)
             self.routingTableStatus[node] = False
-            sleep(3.5)
+            sleep(3.1)
 
     def check_alive(self):
         """
@@ -200,17 +202,17 @@ class DHTNode(threading.Thread):
         '''
 
     def set_backups(self):
-        #TODO: Fazer função send_backup e lidar com a receção de backups de outros nós
         peers = len(self.routingTable.keys())
         images = len(self.keystore[self.identification])
 
-        imagePerPeer = images//peers
+        imagePerPeer = images // peers
         sentImageIdx = 0
 
         rt_keys = list(self.routingTable.keys())
 
-        for i in range(peers-1):
-            self.send_backup(self.routingTable[rt_keys[i]], self.keystore[self.identification][sentImageIdx:sentImageIdx+imagePerPeer])
+        for i in range(peers - 1):
+            self.send_backup(self.routingTable[rt_keys[i]],
+                             self.keystore[self.identification][sentImageIdx:sentImageIdx + imagePerPeer])
             sentImageIdx += imagePerPeer
 
         self.send_backup(self.routingTable[rt_keys[-1]], self.keystore[self.identification][sentImageIdx:])
@@ -236,7 +238,7 @@ class DHTNode(threading.Thread):
     def receive_backup(self, addr, output):
         # Verificar se o diretório de backup do nó em questão já existe
         if "backup_node" + str(output["id"]) not in os.listdir(self.image_directory):
-            os.mkdir(os.path.join(self.image_directory,"backup_node" + str(output["id"])))
+            os.mkdir(os.path.join(self.image_directory, "backup_node" + str(output["id"])))
 
         for i in range(len(output["request"])):
             image = output["request"][i]
@@ -253,8 +255,6 @@ class DHTNode(threading.Thread):
     def stabilize(self):
         self.check_alive()
         self.stay_alive()
-        if not self.backupLocations and len(self.routingTable.keys()) >= 2:
-            self.set_backups()
 
     def run(self):
         self.socket.bind(self.addr)
@@ -341,9 +341,13 @@ class DHTNode(threading.Thread):
                     self.receive_backup(addr, output)
                 elif output["method"] == "BACKUP_ACK":
                     self.backupLocations[output["id"]] = output["info"]
+                    self.socket.settimeout(15)
 
             else:  # timeout occurred, lets run stabilize protocol
-                self.stabilize()
+                if not self.backupLocations and len(self.routingTable.keys()) >= 2:
+                    self.set_backups()
+                else:
+                    self.stabilize()
 
     def __str__(self):
         return "Node ID: {}; DHT: {}; Routing Table Nodes: {}; Keystore: {}; backupLocations: {}".format(
@@ -372,7 +376,7 @@ def main(number_nodes, timeout):
 
     for i in range(number_nodes - 1):
         sleep(0.2)
-        timeout += 3
+        timeout += 2
         # Create DHT_Node threads on ports 5001++ and with initial DHT_Node on port 5000
         node = DHTNode(("localhost", 5001 + i), i + 1, ("localhost", 5000), timeout)
         node.start()
@@ -393,7 +397,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--savelog", default=False, action="store_true")
     parser.add_argument("--nodes", type=int, default=3)
-    parser.add_argument("--timeout", type=int, default=20)
+    parser.add_argument("--timeout", type=int, default=5)
     args = parser.parse_args()
 
     logfile = {}
