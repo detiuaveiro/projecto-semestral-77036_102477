@@ -11,11 +11,6 @@ import enum
 
 
 
-ALIVE = 0
-CHECKING = 1
-SUS = 2
-DEAD = 3
-
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
 
@@ -34,7 +29,7 @@ class DHTNode(threading.Thread):
         self.addr = address  # My address
         self.dht_address = dht_address  # Address of the initial Node
         self.image_directory = "./node" + str(id)
-        self.keepalive_time = 30
+        self.keepalive_time = 60
 
         if dht_address is None:
             self.inside_dht = True
@@ -42,7 +37,7 @@ class DHTNode(threading.Thread):
             self.inside_dht = False
 
         self.routingTable = {}  # Dict that will keep the adresses of the other nodes in the mesh {id:[address]}
-        self.routingTableStatus = {}  # Dict that will keep the connection status of the other nodes in the mesh {id:(Status,Time)}, Status can be 1 (ALIVE), 2(SUSPECT), 3(DEAD)
+        self.routingTableStatus = {}  # Dict that will keep the connection status of the other nodes in the mesh {id:(Status,Time)}, Status can be 1 (ALIVE), 2 (CHECKING), 3(SUSPECT), 4(DEAD)
 
         self.keystore = {}  # Where all data is stored {id: [name,...]}
         self.backupLocations = {}  # Stores the information that are storing backups of the images belonging to the nod {id: img_name}
@@ -139,7 +134,7 @@ class DHTNode(threading.Thread):
                     "args": {"addr": self.addr, "id": self.identification},
                 }
                 self.send(addr, hello_msg)
-                self.routingTableStatus[node] = CHECKING
+                self.routingTableStatus[node] = 2
             sleep(3.1)
 
     def check_alive(self):
@@ -149,10 +144,10 @@ class DHTNode(threading.Thread):
         they're not.
         """
         for node in list(self.routingTableStatus.keys()):
-            if self.routingTableStatus[node][0] == CHECKING:
-                self.routingTableStatus[node][0] = SUS
-            elif self.routingTableStatus[node][0] == SUS:
-                self.routingTableStatus[node][0] = DEAD
+            if self.routingTableStatus[node][0] == 2:
+                self.routingTableStatus[node][0] = 3
+            elif self.routingTableStatus[node][0] == 3:
+                self.routingTableStatus[node][0] = 4
                 del self.routingTable[node]
 
         self.logger.info(self)
@@ -294,10 +289,10 @@ class DHTNode(threading.Thread):
                     # Nó atualiza a sua routing Table com a informação recebida
                     # Adição dos Nós Recebidos na Mensagem
                     self.routingTable = {key: (value[0], value[1]) for key, value in neighborRT.items()}
-                    self.routingTableStatus = {key: (ALIVE, time()) for key in neighborRT.keys()}
+                    self.routingTableStatus = {key: (1, time()) for key in neighborRT.keys()}
                     # Adição do Nó Base
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
-                    self.routingTableStatus[output["args"]["id"]] = (ALIVE, time())
+                    self.routingTableStatus[output["args"]["id"]] = (1, time())
                     self.keystore = output["keystore"]
 
                     # Nó avisa vizinhos de que entrou na rede
@@ -322,7 +317,7 @@ class DHTNode(threading.Thread):
                 elif output["method"] == "HELLO":
                     # Adding the node to the Routing Table
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
-                    self.routingTableStatus[output["args"]["id"]] = (ALIVE, time())
+                    self.routingTableStatus[output["args"]["id"]] = (1, time())
                     self.keystore[output["args"]["id"]] = output["keystore"]
                     self.logger.info(self)
                 elif output["method"] == "ALIVE":
@@ -331,15 +326,15 @@ class DHTNode(threading.Thread):
                         "method": "ALIVE_ACK",
                         "args": {"addr": self.addr, "id": self.identification},
                     }
-                    self.routingTableStatus[output["args"]["id"]] = (ALIVE, time())
+                    self.routingTableStatus[output["args"]["id"]] = (1, time())
                     self.send(addr, ack_msg)
                 elif output["method"] == "ALIVE_ACK":
                     # Changes the status of the sender to alive in the Routing Table
-                    self.routingTableStatus[output["args"]["id"]] = (ALIVE, time())
+                    self.routingTableStatus[output["args"]["id"]] = (1, time())
                 elif output["method"] == "REQUEST_IMG":
                     # handles the request for an image
                     if output["id"] is not None:
-                        self.routingTableStatus[output["args"]["id"]] = (ALIVE, time())
+                        self.routingTableStatus[output["args"]["id"]] = (1, time())
                     self.get(addr, output)
                 elif output["method"] == "REQUEST_LIST":
                     # handles the request the list of images per node
@@ -350,11 +345,11 @@ class DHTNode(threading.Thread):
                     self.send(addr, {"method": "REPLY_LIST", "request": list_values})
                 elif output["method"] == "SEND_BACKUP":
                     self.receive_backup(addr, output)
-                    self.routingTableStatus[output["args"]["id"]] = (ALIVE, time())
+                    self.routingTableStatus[output["id"]] = (1, time())
                 elif output["method"] == "BACKUP_ACK":
                     self.backupLocations[output["id"]] = output["info"]
-                    self.routingTableStatus[output["args"]["id"]] = (ALIVE, time())
-                    self.socket.settimeout(15)
+                    self.routingTableStatus[output["id"]] = (1, time())
+                    self.socket.settimeout(30)
 
             else:  # timeout occurred, lets run stabilize protocol
                 if not self.backupLocations and len(self.routingTable.keys()) >= 1:
@@ -409,7 +404,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--savelog", default=False, action="store_true")
-    parser.add_argument("--nodes", type=int, default=3)
+    parser.add_argument("--nodes", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=5)
     args = parser.parse_args()
 
