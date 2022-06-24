@@ -7,9 +7,8 @@ import threading
 from time import time, sleep
 import argparse
 import os
+import enum
 
-
-# from math import ceil
 
 
 class DHTNode(threading.Thread):
@@ -25,19 +24,24 @@ class DHTNode(threading.Thread):
         """
         threading.Thread.__init__(self)
         self.done = False
+
         self.identification = id
         self.addr = address  # My address
         self.dht_address = dht_address  # Address of the initial Node
         self.image_directory = "./node" + str(id)
+        self.keepalive_time = 60
+
         if dht_address is None:
             self.inside_dht = True
         else:
             self.inside_dht = False
 
-        self.routingTable = {}  # Dict that will keep the adresses of the other nodes in the mesh
-        self.routingTableStatus = {}  # Dict that will keep the connection status of the other nodes in the mesh
+        self.routingTable = {}  # Dict that will keep the adresses of the other nodes in the mesh {id:[address]}
+        self.routingTableStatus = {}  # Dict that will keep the connection status of the other nodes in the mesh {id:(Status,Time)}, Status can be 1 (ALIVE), 2 (CHECKING), 3(SUSPECT), 4(DEAD)
+
         self.keystore = {}  # Where all data is stored {id: [name,...]}
-        self.backupLocations = {}
+        self.backupLocations = {}  # Stores the information that are storing backups of the images belonging to the nod {id: img_name}
+
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(timeout)
         self.logger = logging.getLogger("Node {}".format(self.identification))
@@ -124,12 +128,13 @@ class DHTNode(threading.Thread):
         an ALIVE_ACK message.
         """
         for node, addr in self.routingTable.items():
-            hello_msg = {
-                "method": "ALIVE",
-                "args": {"addr": self.addr, "id": self.identification},
-            }
-            self.send(addr, hello_msg)
-            self.routingTableStatus[node] = False
+            if time() - self.routingTableStatus[node][1] > self.keepalive_time:
+                hello_msg = {
+                    "method": "ALIVE",
+                    "args": {"addr": self.addr, "id": self.identification},
+                }
+                self.send(addr, hello_msg)
+                self.routingTableStatus[node] = 2
             sleep(3.1)
 
     def check_alive(self):
@@ -138,10 +143,11 @@ class DHTNode(threading.Thread):
             Checks all the nodes in the routing table to see if they're still alive. Removes them from the routing table if
         they're not.
         """
-
         for node in list(self.routingTableStatus.keys()):
-            if not self.routingTableStatus[node]:
-                del self.routingTableStatus[node]
+            if self.routingTableStatus[node][0] == 2:
+                self.routingTableStatus[node][0] = 3
+            elif self.routingTableStatus[node][0] == 3:
+                self.routingTableStatus[node][0] = 4
                 del self.routingTable[node]
 
         self.logger.info(self)
@@ -283,11 +289,10 @@ class DHTNode(threading.Thread):
                     # Nó atualiza a sua routing Table com a informação recebida
                     # Adição dos Nós Recebidos na Mensagem
                     self.routingTable = {key: (value[0], value[1]) for key, value in neighborRT.items()}
-                    self.routingTableStatus = {key: True for key in neighborRT.keys()}
+                    self.routingTableStatus = {key: (1, time()) for key in neighborRT.keys()}
                     # Adição do Nó Base
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
-                    self.routingTableStatus[output["args"]["id"]] = True
-
+                    self.routingTableStatus[output["args"]["id"]] = (1, time())
                     self.keystore = output["keystore"]
 
                     # Nó avisa vizinhos de que entrou na rede
@@ -312,10 +317,8 @@ class DHTNode(threading.Thread):
                 elif output["method"] == "HELLO":
                     # Adding the node to the Routing Table
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
-                    self.routingTableStatus[output["args"]["id"]] = True
+                    self.routingTableStatus[output["args"]["id"]] = (1, time())
                     self.keystore[output["args"]["id"]] = output["keystore"]
-                    # Sending the Reply
-                    self.send(addr, {"method": "HELLO_ACK", })
                     self.logger.info(self)
                 elif output["method"] == "ALIVE":
                     # Sends an ALIVE_ACK message notifying self is alive
@@ -323,12 +326,15 @@ class DHTNode(threading.Thread):
                         "method": "ALIVE_ACK",
                         "args": {"addr": self.addr, "id": self.identification},
                     }
+                    self.routingTableStatus[output["args"]["id"]] = (1, time())
                     self.send(addr, ack_msg)
                 elif output["method"] == "ALIVE_ACK":
                     # Changes the status of the sender to alive in the Routing Table
-                    self.routingTableStatus[output["args"]["id"]] = True
+                    self.routingTableStatus[output["args"]["id"]] = (1, time())
                 elif output["method"] == "REQUEST_IMG":
                     # handles the request for an image
+                    if output["id"] is not None:
+                        self.routingTableStatus[output["args"]["id"]] = (1, time())
                     self.get(addr, output)
                 elif output["method"] == "REQUEST_LIST":
                     # handles the request the list of images per node
@@ -339,12 +345,14 @@ class DHTNode(threading.Thread):
                     self.send(addr, {"method": "REPLY_LIST", "request": list_values})
                 elif output["method"] == "SEND_BACKUP":
                     self.receive_backup(addr, output)
+                    self.routingTableStatus[output["id"]] = (1, time())
                 elif output["method"] == "BACKUP_ACK":
                     self.backupLocations[output["id"]] = output["info"]
-                    self.socket.settimeout(15)
+                    self.routingTableStatus[output["id"]] = (1, time())
+                    self.socket.settimeout(30)
 
             else:  # timeout occurred, lets run stabilize protocol
-                if not self.backupLocations and len(self.routingTable.keys()) >= 2:
+                if not self.backupLocations and len(self.routingTable.keys()) >= 1:
                     self.set_backups()
                 else:
                     self.stabilize()
@@ -396,7 +404,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--savelog", default=False, action="store_true")
-    parser.add_argument("--nodes", type=int, default=3)
+    parser.add_argument("--nodes", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=5)
     args = parser.parse_args()
 

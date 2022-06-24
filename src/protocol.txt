@@ -18,10 +18,10 @@ Objetivo: Nó inserido na rede (com id e endereço addr) vai informar todos os o
 Destino: Nós presentes na rede.
 Mensagem: {'method': 'HELLO', 'args': {'addr':addr, 'id':id}, 'keystore': [hash,...]}
 
-HELLO_ACK (?-> Adicionar mecanismo de timout?)
-Objetivo: Responder à mensagem de Hello de um novo nó na rede.
-Destino: Nó que entrou na rede
-Mensagem: {'method': 'HELLO_ACK'}
+#HELLO_ACK (?-> Adicionar mecanismo de timout?)
+#Objetivo: Responder à mensagem de Hello de um novo nó na rede.
+#Destino: Nó que entrou na rede
+#Mensagem: {'method': 'HELLO_ACK'}
 
 ALIVE
 Objetivo: Após timeout no processo stabilize cada nó envia para os nós da sua routing table que está vivo
@@ -39,7 +39,7 @@ REQUEST_IMG
 Objetivo: Pedir ao nó que tem a imagem que a envie
 Destino: Nó do cliente e se este n tiver a imagem o nó que a tiver
 entre nós:
-mensagem: {'method': 'REQUEST_IMG', 'args': addr, 'request': 'name'}
+mensagem: {'method': 'REQUEST_IMG', 'args': addr, 'id': id, request': 'name'}
 cliente:
 mensagem: {'method': 'REQUEST_IMG', 'request': 'name'}
 
@@ -68,9 +68,7 @@ mensagem {'method': 'SEND_BACKUP', 'id': requesting_node_id, 'request': [image, 
 BACKUP_ACK
 Objetivo: Ack de receção da imagem guardada como backup
 Destino: Nó que tem a cópia original da imagem
-mensagem {'method': 'BACKUP_ACK', 'info': [name, ...]}
-
-TODO: Adicionar mensagens para protocolo de backup
+mensagem {'method': 'BACKUP_ACK', 'id': id, 'info': [name, ...]}
 
 Opções do Cliente:
 /list -> listar todas as imagens guardadas no sistema
