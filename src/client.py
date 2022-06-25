@@ -9,18 +9,27 @@ import time
 import argparse
 
 
-# from PIL import Image
-
-
 class Client:
     def __init__(self, address):
+        """
+            Parameters:
+                address: Adress of the node in the Network this CLient is connecting to
+        """
         self.dht_addr = address
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.logger = logging.getLogger("DHTClient")
+        self.logger = logging.getLogger("NetworkClient")
         self.m_selector = selectors.DefaultSelector()
         self.m_selector.register(sys.stdin, selectors.EVENT_READ, self.got_keyboard_data)
 
     def got_keyboard_data(self, stdin):
+        """
+            Reads user input from the terminal.
+            Accepts four commands:
+                /help -> Lists the available commands
+                /list -> Will fetch the list of the images stored by the Network
+                /image -> Will fetch an image by Name
+                /exit -> Terminates the Client
+        """
         keyboard_input = stdin.read()
         parameters = keyboard_input.rstrip().split()
 
@@ -38,9 +47,15 @@ class Client:
             self.socket.close()
             quit()
         else:
-            pass
+            print('''\n/list -> Will fetch the list of the images stored by the Network
+/image [Name] -> Will fetch an image by Name
+/exit -> Terminates the Client\n''')
 
     def get_list(self):
+        """
+            Processes a /list request.
+            Returns the list of images stored by the contacted Network, using a REQUEST_LIST message
+        """
         msg = {"method": "REQUEST_LIST"}
 
         # Send the Message
@@ -64,6 +79,12 @@ class Client:
         return out["request"]
 
     def get_image(self, name):
+        """
+            Processes a /image request.
+            Returns the image, if stored by the contacted Network, using a REQUEST_IMG message
+            Parameters:
+                name: Name of the Image to be fetched
+        """
         msg = {"method": "REQUEST_IMG", "request": name}
 
         # Send the Message
@@ -108,7 +129,6 @@ class Client:
 
     def loop(self):
         """Loop indefinitely."""
-        # set sys.stdin non-blocking
         orig_fl = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
         fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl | os.O_NONBLOCK)
 
@@ -122,8 +142,8 @@ class Client:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("node_addr", type=str)
-    parser.add_argument("node_port", type=int)
+    parser.add_argument("node_addr", type=str, help="Address of the node to be contacted")
+    parser.add_argument("node_port", type=int, help="Port of the node to be contacted")
     args = parser.parse_args()
 
     client = Client((args.node_addr, args.node_port))
