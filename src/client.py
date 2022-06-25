@@ -6,6 +6,7 @@ import selectors
 import socket
 import sys
 import time
+import argparse
 
 
 # from PIL import Image
@@ -56,7 +57,9 @@ class Client:
             self.logger.error("Invalid msg: %s", out)
             return None
 
-        print(out["request"])
+        print("List of images:")
+        for image in out["request"]:
+            print("> " + image)
 
         return out["request"]
 
@@ -71,6 +74,8 @@ class Client:
         # Receive the Reply
         data, addr = self.socket.recvfrom(8)
         msg_size = int.from_bytes(data, "big")
+
+        print("Loading image, please wait!")
 
         size = 0
         msg_bytes = bytes("".encode('UTF-8'))
@@ -92,46 +97,12 @@ class Client:
             msg_bytes += data
             size += 4096
 
-        '''
-        # Reply
-        # Receiving the image size and the total number of packets
-        data, addr = self.socket.recvfrom(8)
-        msgSize = int.from_bytes(data, "big")
-        pickled_message, addr = self.socket.recvfrom(msgSize)
-        out = pickle.loads(pickled_message)
-        if out["method"] != "REPLY_IMG":
-            self.logger.error("Invalid msg: %s", out)
-            return None
-
-        img_size = out["size"]
-        total_packages = out["totalPackages"]
-        img_mode = out["mode"]
-
-        img_bytes = bytes("".encode('UTF-8'))
-        
-        # Receiving the packets with the images
-        for i in range(total_packages):
-            data, addr = self.socket.recvfrom(8)
-            msgSize = int.from_bytes(data, "big")
-
-            pickled_message, addr = self.socket.recvfrom(msgSize)
-            out = pickle.loads(pickled_message)
-            if out["method"] != "REPLY_IMG":
-                self.logger.error("Invalid msg: %s", out)
-                return None
-            img_bytes += out["request"]
-            print(img_bytes)
-
-
-        img = Image.frombytes(img_mode, img_size, img_bytes)
-        '''
-
         try:
             out = pickle.loads(msg_bytes)
             img = out["request"]
             img.show()
             return img
-        finally:
+        except:
             print("There was a problem, try asking again!")
             return 0
 
@@ -150,5 +121,10 @@ class Client:
 
 
 if __name__ == "__main__":
-    client = Client(("localhost", 5000))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("node_addr", type=str)
+    parser.add_argument("node_port", type=int)
+    args = parser.parse_args()
+
+    client = Client((args.node_addr, args.node_port))
     client.loop()

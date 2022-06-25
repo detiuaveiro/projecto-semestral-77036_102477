@@ -17,7 +17,7 @@ DEAD = 4
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
 
-    def __init__(self, address, id, dht_address=None, timeout=10):
+    def __init__(self, address, id, dht_address=None, timeout=15):
         """Constructor
 
         Parameters:
@@ -143,7 +143,7 @@ class DHTNode(threading.Thread):
                     self.routingTableStatus[node][0] = CHECKING
             else:
                 self.routingTableStatus[node][0] = ALIVE
-            sleep(3.1)
+            sleep(1)
 
     def check_alive(self):
         """
@@ -156,7 +156,8 @@ class DHTNode(threading.Thread):
                 self.routingTableStatus[node][0] = SUS
             elif self.routingTableStatus[node][0] == SUS:
                 self.routingTableStatus[node][0] = DEAD
-                self.restoreBackups(self.routingTableStatus[node])
+                if os.path.isdir(os.path.join(self.image_directory, "backup_node" + str(node))):
+                    self.restoreBackups(node)
                 del self.routingTable[node]
 
 
@@ -182,7 +183,10 @@ class DHTNode(threading.Thread):
 
     def get_images(self):
         nodeImages = []
-        hashes = [img[0] for img in self.keystore.values()]
+        if len(list(self.keystore.values())) != 0:
+            hashes = [img[0] for img in list(self.keystore.values())[0]]
+        else:
+            hashes = []
 
         for image in os.listdir(self.image_directory):
             path = self.image_directory + '/' + image
@@ -218,9 +222,13 @@ class DHTNode(threading.Thread):
         '''
     def check_backedup_images(self):
         unbackedImages = []
+
         for img in self.keystore[self.identification]:
-            if img not in list(self.backupLocations.values()):
+            if len(list(self.backupLocations.values())) != 0 and img not in [x for v in self.backupLocations.values() for x in v]:
                 unbackedImages.append(img)
+            elif len(self.backupLocations.values()) == 0:
+                unbackedImages.append(img)
+
 
         if len(unbackedImages) > 0:
             return unbackedImages
@@ -236,11 +244,14 @@ class DHTNode(threading.Thread):
 
         rt_keys = list(self.routingTable.keys())
 
+        print("Starting Backup, please wait!")
+
         for i in range(peers - 1):
             self.send_backup(self.routingTable[rt_keys[i]],
                              unbackedImages[sentImageIdx:sentImageIdx + imagePerPeer])
             sentImageIdx += imagePerPeer
         self.send_backup(self.routingTable[rt_keys[-1]], unbackedImages[sentImageIdx:])
+        sleep(0.01)
 
     def send_backup(self, addr, imageList):
         all_img = []
@@ -259,7 +270,6 @@ class DHTNode(threading.Thread):
                 "info": all_img_info[i],
             }
             self.send(addr, backup_msg)
-            sleep(2)
 
     def receive_backup(self, addr, output):
         # Verificar se o diretório de backup do nó em questão já existe
@@ -279,10 +289,12 @@ class DHTNode(threading.Thread):
         self.send(addr, backup_ack_msg)
 
     def restoreBackups(self, node):
-        for image in os.listdir(os.path.join(self.image_directory, "backup_node" + node)):
-            os.rename(image, self.image_directory)
+        backupPath = os.path.join(self.image_directory, "backup_node" + str(node))
+        for image in os.listdir(backupPath):
+            os.rename(os.path.join(backupPath, image), os.path.join(self.image_directory, image))
 
-        os.rmdir(os.path.join(self.image_directory, "backup_node" + node))
+        os.rmdir(backupPath)
+        print("Node " + str(node) + " died, backup restore made!")
 
     def stabilize(self):
         self.check_alive()
@@ -341,7 +353,6 @@ class DHTNode(threading.Thread):
             payload, addr = self.recv()
             if payload is not None:
                 output = pickle.loads(payload)
-                print(output)
                 self.logger.info("%s: %s", self.identification, output)
                 if output["method"] == "JOIN_REQ":
                     self.node_join(output["args"])
@@ -384,6 +395,8 @@ class DHTNode(threading.Thread):
                         self.backupLocations[output["id"]] = {output["info"]}
 
                     self.routingTableStatus[output["id"]] = [ALIVE, time()]
+                    if len([x for v in self.backupLocations.values() for x in v]) == len(self.keystore[self.identification]):
+                        print("Backup finished, have o good day :)")
                     #self.socket.settimeout(15)
 
             else:  # timeout occurred, lets run stabilize protocol
@@ -450,7 +463,7 @@ if __name__ == "__main__":
     parser.add_argument("-net_addr", type=str)
     parser.add_argument("-net_port", type=int)
     # parser.add_argument("--nodes", type=int, default=5)
-    parser.add_argument("--timeout", type=int, default=10)
+    parser.add_argument("--timeout", type=int, default=15)
     args = parser.parse_args()
 
     logfile = {}
@@ -463,8 +476,6 @@ if __name__ == "__main__":
         datefmt="%m-%d %H:%M:%S",
         **logfile
     )
-
-    # print(args)
 
     logging.getLogger('PIL').setLevel(logging.WARNING)
 
