@@ -219,7 +219,7 @@ class DHTNode(threading.Thread):
     def check_backedup_images(self):
         unbackedImages = []
         for img in self.keystore[self.identification]:
-            if img not in self.backupLocations.values():
+            if img not in list(self.backupLocations.values()):
                 unbackedImages.append(img)
 
         if len(unbackedImages) > 0:
@@ -249,7 +249,7 @@ class DHTNode(threading.Thread):
             img_path = self.image_directory + "/" + imageInfo[1]
             image = Image.open(img_path)
             all_img.append(image)
-            all_img_info.append(imageInfo[1])
+            all_img_info.append(imageInfo)
 
         for i in range(len(all_img)):
             backup_msg = {
@@ -259,6 +259,7 @@ class DHTNode(threading.Thread):
                 "info": all_img_info[i],
             }
             self.send(addr, backup_msg)
+            sleep(2)
 
     def receive_backup(self, addr, output):
         # Verificar se o diretório de backup do nó em questão já existe
@@ -267,7 +268,7 @@ class DHTNode(threading.Thread):
 
         # for i in range(len(output["request"])):
         image = output["request"]
-        image.save(os.path.join(self.image_directory, "backup_node" + str(output["id"]) + "/" + output["info"]))
+        image.save(os.path.join(self.image_directory, "backup_node" + str(output["id"]) + "/" + output["info"][1]))
 
         backup_ack_msg = {
             "method": "BACKUP_ACK",
@@ -378,9 +379,9 @@ class DHTNode(threading.Thread):
                     self.routingTableStatus[output["id"]] = [ALIVE, time()]
                 elif output["method"] == "BACKUP_ACK":
                     if output["id"] in self.backupLocations:
-                        self.backupLocations[output["id"]].append(output["info"])
+                        self.backupLocations[output["id"]].add(output["info"])
                     else:
-                        self.backupLocations[output["id"]] = [output["info"]]
+                        self.backupLocations[output["id"]] = {output["info"]}
 
                     self.routingTableStatus[output["id"]] = [ALIVE, time()]
                     #self.socket.settimeout(15)
