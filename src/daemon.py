@@ -9,12 +9,15 @@ import argparse
 import os
 import enum
 
-
+ALIVE = 1
+CHECKING = 2
+SUS = 3
+DEAD = 4
 
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
 
-    def __init__(self, address, id, dht_address=None, timeout=5):
+    def __init__(self, address, id, dht_address=None, timeout=10):
         """Constructor
 
         Parameters:
@@ -23,13 +26,14 @@ class DHTNode(threading.Thread):
             timeout: impacts how often stabilize algorithm is carried out
         """
         threading.Thread.__init__(self)
+        print("Node " + str(id) + ": " + str(address))
         self.done = False
 
         self.identification = id
         self.addr = address  # My address
         self.dht_address = dht_address  # Address of the initial Node
         self.image_directory = "./node" + str(id)
-        self.keepalive_time = 60
+        self.keepalive_time = 30
 
         if dht_address is None:
             self.inside_dht = True
@@ -113,7 +117,7 @@ class DHTNode(threading.Thread):
             rt_reply[node] = addr
 
         self.routingTable[identification] = recAddr
-        self.routingTableStatus[identification] = True
+        self.routingTableStatus[identification] = [ALIVE, time()]
         self.keystore[identification] = recKeystore
         self.send(recAddr, {"method": "JOIN_REP", "args": {'addr': self.addr, 'id': self.identification},
                             "routingTable": rt_reply, "keystore": self.keystore})
@@ -134,7 +138,10 @@ class DHTNode(threading.Thread):
                     "args": {"addr": self.addr, "id": self.identification},
                 }
                 self.send(addr, hello_msg)
-                self.routingTableStatus[node] = 2
+                if self.routingTableStatus[node][0] == ALIVE:
+                    self.routingTableStatus[node][0] = CHECKING
+            else:
+                self.routingTableStatus[node][0] = ALIVE
             sleep(3.1)
 
     def check_alive(self):
@@ -144,10 +151,10 @@ class DHTNode(threading.Thread):
         they're not.
         """
         for node in list(self.routingTableStatus.keys()):
-            if self.routingTableStatus[node][0] == 2:
-                self.routingTableStatus[node][0] = 3
-            elif self.routingTableStatus[node][0] == 3:
-                self.routingTableStatus[node][0] = 4
+            if self.routingTableStatus[node][0] == CHECKING:
+                self.routingTableStatus[node][0] = SUS
+            elif self.routingTableStatus[node][0] == SUS:
+                self.routingTableStatus[node][0] = DEAD
                 del self.routingTable[node]
 
         self.logger.info(self)
@@ -220,7 +227,6 @@ class DHTNode(threading.Thread):
             self.send_backup(self.routingTable[rt_keys[i]],
                              self.keystore[self.identification][sentImageIdx:sentImageIdx + imagePerPeer])
             sentImageIdx += imagePerPeer
-
         self.send_backup(self.routingTable[rt_keys[-1]], self.keystore[self.identification][sentImageIdx:])
 
     def send_backup(self, addr, imageList):
@@ -232,23 +238,23 @@ class DHTNode(threading.Thread):
             all_img.append(image)
             all_img_info.append(imageInfo[1])
 
-        backup_msg = {
-            "method": "SEND_BACKUP",
-            "id": self.identification,
-            "request": all_img,
-            "info": all_img_info,
-        }
-
-        self.send(addr, backup_msg)
+        for i in range(len(all_img)):
+            backup_msg = {
+                "method": "SEND_BACKUP",
+                "id": self.identification,
+                "request": all_img[i],
+                "info": all_img_info[i],
+            }
+            self.send(addr, backup_msg)
 
     def receive_backup(self, addr, output):
         # Verificar se o diretório de backup do nó em questão já existe
         if "backup_node" + str(output["id"]) not in os.listdir(self.image_directory):
             os.mkdir(os.path.join(self.image_directory, "backup_node" + str(output["id"])))
 
-        for i in range(len(output["request"])):
-            image = output["request"][i]
-            image.save(os.path.join(self.image_directory, "backup_node" + str(output["id"]) + "/" + output["info"][i]))
+        # for i in range(len(output["request"])):
+        image = output["request"]
+        image.save(os.path.join(self.image_directory, "backup_node" + str(output["id"]) + "/" + output["info"]))
 
         backup_ack_msg = {
             "method": "BACKUP_ACK",
@@ -289,10 +295,10 @@ class DHTNode(threading.Thread):
                     # Nó atualiza a sua routing Table com a informação recebida
                     # Adição dos Nós Recebidos na Mensagem
                     self.routingTable = {key: (value[0], value[1]) for key, value in neighborRT.items()}
-                    self.routingTableStatus = {key: (1, time()) for key in neighborRT.keys()}
+                    self.routingTableStatus = {key: [ALIVE, time()] for key in neighborRT.keys()}
                     # Adição do Nó Base
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
-                    self.routingTableStatus[output["args"]["id"]] = (1, time())
+                    self.routingTableStatus[output["args"]["id"]] = [ALIVE, time()]
                     self.keystore = output["keystore"]
 
                     # Nó avisa vizinhos de que entrou na rede
@@ -304,20 +310,25 @@ class DHTNode(threading.Thread):
                         }
                         self.send(addr, hello_msg)
 
+                    if not self.backupLocations and len(self.routingTable.keys()) >= 2:
+                        self.set_backups()
+
                     self.inside_dht = True
                     self.logger.info(self)
 
         while not self.done:
+            self.logger.info(self)
             payload, addr = self.recv()
             if payload is not None:
                 output = pickle.loads(payload)
+                print(output)
                 self.logger.info("%s: %s", self.identification, output)
                 if output["method"] == "JOIN_REQ":
                     self.node_join(output["args"], output["keystore"])
                 elif output["method"] == "HELLO":
                     # Adding the node to the Routing Table
                     self.routingTable[output["args"]["id"]] = (output["args"]["addr"][0], output["args"]["addr"][1])
-                    self.routingTableStatus[output["args"]["id"]] = (1, time())
+                    self.routingTableStatus[output["args"]["id"]] = [ALIVE, time()]
                     self.keystore[output["args"]["id"]] = output["keystore"]
                     self.logger.info(self)
                 elif output["method"] == "ALIVE":
@@ -326,15 +337,15 @@ class DHTNode(threading.Thread):
                         "method": "ALIVE_ACK",
                         "args": {"addr": self.addr, "id": self.identification},
                     }
-                    self.routingTableStatus[output["args"]["id"]] = (1, time())
+                    self.routingTableStatus[output["args"]["id"]] = [ALIVE, time()]
                     self.send(addr, ack_msg)
                 elif output["method"] == "ALIVE_ACK":
                     # Changes the status of the sender to alive in the Routing Table
-                    self.routingTableStatus[output["args"]["id"]] = (1, time())
+                    self.routingTableStatus[output["args"]["id"]] = [ALIVE, time()]
                 elif output["method"] == "REQUEST_IMG":
                     # handles the request for an image
-                    if output["id"] is not None:
-                        self.routingTableStatus[output["args"]["id"]] = (1, time())
+                    if "id" in output.keys():
+                        self.routingTableStatus[output["id"]] = [ALIVE, time()]
                     self.get(addr, output)
                 elif output["method"] == "REQUEST_LIST":
                     # handles the request the list of images per node
@@ -345,24 +356,24 @@ class DHTNode(threading.Thread):
                     self.send(addr, {"method": "REPLY_LIST", "request": list_values})
                 elif output["method"] == "SEND_BACKUP":
                     self.receive_backup(addr, output)
-                    self.routingTableStatus[output["id"]] = (1, time())
+                    self.routingTableStatus[output["id"]] = [ALIVE, time()]
                 elif output["method"] == "BACKUP_ACK":
                     self.backupLocations[output["id"]] = output["info"]
-                    self.routingTableStatus[output["id"]] = (1, time())
-                    self.socket.settimeout(30)
+                    self.routingTableStatus[output["id"]] = [ALIVE, time()]
+                    self.socket.settimeout(15)
 
             else:  # timeout occurred, lets run stabilize protocol
-                if not self.backupLocations and len(self.routingTable.keys()) >= 1:
+                if not self.backupLocations and len(self.routingTable.keys()) >= 2:
                     self.set_backups()
                 else:
                     self.stabilize()
 
     def __str__(self):
-        return "Node ID: {}; DHT: {}; Routing Table Nodes: {}; Keystore: {}; backupLocations: {}".format(
+        return "Node ID: {}; DHT: {}; Routing Table Nodes: {}; backupLocations: {}".format(
             self.identification,
             self.inside_dht,
             self.routingTable,
-            self.keystore,
+            # self.keystore,
             self.backupLocations,
         )
 
@@ -370,33 +381,37 @@ class DHTNode(threading.Thread):
         return self.__str__()
 
 
-def main(number_nodes, timeout):
+def main(node_addr, node_id, timeout, net_contact=None):
     """ Script to launch several DHT nodes. """
     # logger for the main
-    logger = logging.getLogger("DHT")
+    logger = logging.getLogger("network")
     # list with all the nodes
-    dht = []
+    # dht = []
     # initial node on DHT
-    node = DHTNode(("localhost", 5000), 0)
+    # node = DHTNode(("localhost", 5000), 0)
+    # node.start()
+    # dht.append(node)
+    # logger.info(node)
+
+    # for i in range(number_nodes - 1):
+    # # timeout += 2
+    # Create DHT_Node threads on ports 5001++ and with initial DHT_Node on port 5000
+
+    if net_contact == (None, None):
+        node = DHTNode(node_addr, node_id, timeout=timeout)
+    else:
+        node = DHTNode(node_addr, node_id, net_contact, timeout=timeout)
+
     node.start()
-    dht.append(node)
+    # dht.append(node)
     logger.info(node)
 
-    for i in range(number_nodes - 1):
-        sleep(0.2)
-        timeout += 2
-        # Create DHT_Node threads on ports 5001++ and with initial DHT_Node on port 5000
-        node = DHTNode(("localhost", 5001 + i), i + 1, ("localhost", 5000), timeout)
-        node.start()
-        dht.append(node)
-        logger.info(node)
-
     # Await for DHT to get stable
-    sleep(10)
+    # sleep(10)
 
     # Await for all nodes to stop
-    for node in dht:
-        node.join()
+    # for node in dht:
+    node.join()
 
 
 if __name__ == "__main__":
@@ -404,13 +419,18 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--savelog", default=False, action="store_true")
-    parser.add_argument("--nodes", type=int, default=5)
-    parser.add_argument("--timeout", type=int, default=5)
+    parser.add_argument("node_id", type=int)
+    parser.add_argument("node_addr", type=str)
+    parser.add_argument("node_port", type=int)
+    parser.add_argument("-net_addr", type=str)
+    parser.add_argument("-net_port", type=int)
+    # parser.add_argument("--nodes", type=int, default=5)
+    parser.add_argument("--timeout", type=int, default=10)
     args = parser.parse_args()
 
     logfile = {}
     if args.savelog:
-        logfile = {"filename": "dht.txt", "filemode": "w"}
+        logfile = {"filename": "network.txt", "filemode": "w"}
 
     logging.basicConfig(
         level=logging.DEBUG,
@@ -419,6 +439,9 @@ if __name__ == "__main__":
         **logfile
     )
 
+    # print(args)
+
     logging.getLogger('PIL').setLevel(logging.WARNING)
 
-    main(args.nodes, timeout=args.timeout)
+    main(node_addr=(args.node_addr, args.node_port), node_id=args.node_id, net_contact=(args.net_addr, args.net_port),
+         timeout=args.timeout)
