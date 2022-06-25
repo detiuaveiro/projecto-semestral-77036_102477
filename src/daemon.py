@@ -17,7 +17,7 @@ DEAD = 4
 class DHTNode(threading.Thread):
     """ DHT Node Agent. """
 
-    def __init__(self, address, id, dht_address=None, timeout=15):
+    def __init__(self, address, folder, id, dht_address=None, timeout=15):
         """Constructor
 
         Parameters:
@@ -33,7 +33,7 @@ class DHTNode(threading.Thread):
         self.identification = id
         self.addr = address  # My address
         self.dht_address = dht_address  # Address of the initial Node
-        self.image_directory = "./node" + str(id)   # Directory where my photos are stashed
+        self.image_directory = "./" + folder    # Directory where my photos are stashed
         self.keepalive_time = 30
 
         self.routingTable = {}  # Dict that will keep the addresses of the other nodes in the mesh {id:[address]}
@@ -476,7 +476,7 @@ class DHTNode(threading.Thread):
         return self.__str__()
 
 
-def main(node_addr, node_id, timeout, net_contact=None):
+def main(node_addr, folder, node_id, timeout, net_contact=None):
     """
         Launches the node.
         Parameters:
@@ -488,9 +488,9 @@ def main(node_addr, node_id, timeout, net_contact=None):
     logger = logging.getLogger("network")
 
     if net_contact == (None, None):
-        node = DHTNode(node_addr, node_id, timeout=timeout)
+        node = DHTNode(node_addr, folder, node_id, timeout=timeout)
     else:
-        node = DHTNode(node_addr, node_id, net_contact, timeout=timeout)
+        node = DHTNode(node_addr, folder, node_id, net_contact, timeout=timeout)
 
     node.start()
     logger.info(node)
@@ -502,6 +502,7 @@ def main(node_addr, node_id, timeout, net_contact=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--savelog", default=True, action="store_false")
+    parser.add_argument("folder", type=str, help="Folder name of the node to be started")
     parser.add_argument("node_id", type=int, help="ID of the node to be started")
     parser.add_argument("node_addr", type=str, help="Address of the node to be started")
     parser.add_argument("node_port", type=int, help="Port of the node to be started")
@@ -525,4 +526,4 @@ if __name__ == "__main__":
     logging.getLogger('PIL').setLevel(logging.WARNING)
 
     main(node_addr=(args.node_addr, args.node_port), node_id=args.node_id, net_contact=(args.net_addr, args.net_port),
-         timeout=args.timeout)
+         timeout=args.timeout, folder=args.folder)
