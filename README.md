@@ -1,5 +1,5 @@
 ## Context
-The goal of this project, done for the subject Computação Distribuída at Universidade de Aveiro, was to develop a P2P network for photo sharing. More details may be found inside the **./docs** folder at **Relatório.pdf**.
+The goal of this project, done for the subject "Distributed Computing" at Universidade de Aveiro, was to develop a P2P network for photo sharing. More details may be found inside the **./docs** folder at **Relatório.pdf**.
 
 ## Development Team
 
