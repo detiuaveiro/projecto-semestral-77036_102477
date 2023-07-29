@@ -1,4 +1,10 @@
-# projecto-semestral-77036_102477
+## Context
+The goal of this project, done for the subject Computação Distribuída at Universidade de Aveiro, was to develop a P2P network for photo sharing. More details may be found inside the **./docs** folder at **Relatório.pdf**.
+
+## Development Team
+
+- [Artur Correia](https://github.com/afarturc) (art.afo@ua.pt)
+- [Daniel Carvalho](https://github.com/danielfcarvalho) (dl.carvalho@ua.pt)
 
 ## How to run daemon.py
 ```
